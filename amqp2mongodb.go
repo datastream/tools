@@ -61,8 +61,8 @@ func NewMetric(s string) *Metric {
 			}
 			this.Name += splitname[i]
 		}
-		this.Value, _ = strconv.ParseFloat(splitname[1], 64)
-		this.Timestamp, _ = strconv.ParseInt(splitname[2], 10, 64)
+		this.Value, _ = strconv.ParseFloat(splitstring[1], 64)
+		this.Timestamp, _ = strconv.ParseInt(splitstring[2], 10, 64)
 		return this
 	} else {
 		log.Fatal("metric not recognized: ", s)
@@ -87,6 +87,9 @@ func main() {
 			select {
 			case <- c.done:
 				{
+					c.channel.Close()
+					c.conn.Close()
+					c = nil
 					c, err = NewConsumer(*uri, *exchange, *exchangeType, *queue, *bindingKey, *consumerTag)
 					go c.handle()
 					if err != nil {

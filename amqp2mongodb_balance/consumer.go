@@ -26,14 +26,14 @@ func NewConsumer(amqpURI, exchange, exchangeType, queue, key, ctag string) (*Con
 	log.Printf("dialing %s", amqpURI)
 	c.conn, err = amqp.Dial(amqpURI)
 	if err != nil {
-		log.Fatalf("Dial: %s", err)
+		log.Printf("Dial: %s", err)
 		return nil, err
 	}
 
 	log.Printf("got Connection, getting Channel")
 	c.channel, err = c.conn.Channel()
 	if err != nil {
-		log.Fatalf("Channel: %s", err)
+		log.Printf("Channel: %s", err)
 		return nil, err
 	}
 
@@ -46,7 +46,7 @@ func NewConsumer(amqpURI, exchange, exchangeType, queue, key, ctag string) (*Con
 		false,             // noWait
 		nil,               // arguments
 	); err != nil {
-		log.Fatalf("Exchange Declare: %s", err)
+		log.Printf("Exchange Declare: %s", err)
 		return nil, err
 	}
 
@@ -59,7 +59,7 @@ func NewConsumer(amqpURI, exchange, exchangeType, queue, key, ctag string) (*Con
 		nil,              // arguments
 	)
 	if err != nil {
-		log.Fatalf("Queue Declare: %s", err)
+		log.Printf("Queue Declare: %s", err)
 		return nil, err
 	}
 
@@ -73,7 +73,7 @@ func NewConsumer(amqpURI, exchange, exchangeType, queue, key, ctag string) (*Con
 		false,    // noWait
 		nil,      // arguments
 	); err != nil {
-		log.Fatalf("Queue Bind: %s", err)
+		log.Printf("Queue Bind: %s", err)
 		return nil, err
 	}
 
@@ -88,7 +88,7 @@ func NewConsumer(amqpURI, exchange, exchangeType, queue, key, ctag string) (*Con
 		nil,   // arguments
 	)
 	if err != nil {
-		log.Fatalf("Queue Consume: %s", err)
+		log.Printf("Queue Consume: %s", err)
 		return nil, err
 	}
 	return c, nil

@@ -44,7 +44,7 @@ func (this *Work)renew() {
 		select {
 		case op := <- this.p:
 			{
-				log.Fatalf("%s", <- op.done)
+				log.Printf("%s", <- op.done)
 				p, err := NewProducer(*mongouri, *dbname, *collection, *user, *password)
 				if err != nil {
 					log.Printf("%s", err)
@@ -56,7 +56,7 @@ func (this *Work)renew() {
 			}
 		case oc := <- this.c:
 			{
-				log.Fatalf("%s", <- oc.done)
+				log.Printf("%s", <- oc.done)
 				c, err := NewConsumer(*uri, *exchange, *exchangeType, *queue, *bindingKey, *consumerTag)
 				if err != nil {
 					log.Printf("%s", err)

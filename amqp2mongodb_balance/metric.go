@@ -43,7 +43,7 @@ func NewMetric(s string) *Metric {
 		this.Timestamp, _ = strconv.ParseInt(splitstring[2], 10, 64)
 		return this
 	} else if len(splitstring) != 1 {
-		log.Fatal("metric not recognized: ", s)
+		log.Printf("metric not recognized: ", s)
 	}
 	return nil
 }

@@ -16,15 +16,15 @@ func NewProducer(mongouri, dbname, collection, user, password string) (m *Produc
 	m = new(Producer)
 	m.session, err =  mgo.Dial(mongouri)
 	if err != nil {
-		return
+		return nil, err
 	}
 	db := m.session.DB(dbname)
 	err = db.Login(user,password)
 	if err != nil {
-		return
+		return nil, err
 	}
 	m.collection = db.C(collection)
-	return
+	return m, err
 }
 
 func (this *Producer)handle(work *Work) {
@@ -34,7 +34,7 @@ func (this *Producer)handle(work *Work) {
 		for i := range metrics {
 			err := this.collection.Insert(NewMetric(metrics[i]))
 			if err != nil {
-				log.Fatal("mongodb insert failed", body)
+				log.Printf("mongodb insert failed", body)
 				this.done <- err
 				this.session.Close()
 				this.session = nil

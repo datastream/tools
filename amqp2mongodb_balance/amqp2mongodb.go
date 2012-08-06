@@ -49,6 +49,7 @@ func (this *Work)renew() {
 				if err != nil {
 					log.Printf("%s", err)
 					time.Sleep(time.Duration(2*time.Second))
+					p.done <- nil
 					this.p <- p
 				} else {
 					this.np <- p
@@ -61,6 +62,7 @@ func (this *Work)renew() {
 				if err != nil {
 					log.Printf("%s", err)
 					time.Sleep(time.Duration(2*time.Second))
+					c.done <- nil
 					this.c <- c
 				} else {
 					this.nc <- c

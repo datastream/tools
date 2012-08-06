@@ -35,7 +35,6 @@ func (this *Producer)handle(work *Work) {
 			err := this.collection.Insert(NewMetric(metrics[i]))
 			if err != nil {
 				log.Printf("mongodb insert failed", body)
-				this.done <- err
 				this.session.Close()
 				this.session = nil
 				work.message <- body
@@ -43,6 +42,7 @@ func (this *Producer)handle(work *Work) {
 			}
 		}
 		if this.session == nil {
+			this.done <- err
 			break
 		}
 	}

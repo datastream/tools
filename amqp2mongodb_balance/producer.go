@@ -37,15 +37,14 @@ func (this *Producer)handle(work *Work) {
 			if err != nil {
 				log.Printf("mongodb insert failed", body)
 				this.session.Close()
-				this.session = nil
-				work.message <- body
 				break
 			}
 		}
-		if this.session == nil {
+		if err != nil {
 			this.done <- err
+			work.producer <- this
+			work.message <- body
 			break
 		}
 	}
-	work.p <- this
 }

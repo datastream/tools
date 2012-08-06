@@ -109,5 +109,5 @@ func (this *Consumer)handle(work *Work) {
 	}
 	log.Printf("handle: deliveries channel closed")
 	this.done <- nil
-	work.c <- this
+	work.consumer <- this
 }

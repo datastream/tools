@@ -23,64 +23,60 @@ var (
 const nWorker = 10
 
 type Work struct {
-	c chan *Consumer
-	p chan *Producer
-	nc chan *Consumer
-	np chan *Producer
+	consumer chan *Consumer
+	producer chan *Producer
 	message chan *string
 	done chan int
 }
 func NewWork() *Work {
 	 return &Work{
-		c: make(chan *Consumer),
-		p: make(chan *Producer),
-		nc: make(chan *Consumer),
-		np: make(chan *Producer),
+		consumer: make(chan *Consumer),
+		producer: make(chan *Producer),
 		message: make(chan *string),
+		done: make(chan int),
 	}
 }
-func (this *Work)renew() {
+func (this *Work)work() {
 	for {
 		select {
-		case op := <- this.p:
+		case op := <- this.producer:
 			{
-				log.Printf("%s", <- op.done)
-				p, err := NewProducer(*mongouri, *dbname, *collection, *user, *password)
-				if err != nil {
-					log.Printf("%s", err)
-					time.Sleep(time.Duration(2*time.Second))
-					p.done <- nil
-					this.p <- p
-				} else {
-					this.np <- p
+				select {
+				case <- op.done:
+					{
+						p, err := NewProducer(*mongouri, *dbname, *collection, *user, *password)
+						if err != nil {
+							log.Printf("create new producer error%s", err)
+							time.Sleep(time.Duration(2*time.Second))
+							p.done <- nil
+						}
+						this.producer <- p
+
+					}
+				default:
+					{
+						go op.handle(this)
+					}
 				}
 			}
-		case oc := <- this.c:
+		case oc := <- this.consumer:
 			{
-				log.Printf("%s", <- oc.done)
-				c, err := NewConsumer(*uri, *exchange, *exchangeType, *queue, *bindingKey, *consumerTag)
-				if err != nil {
-					log.Printf("%s", err)
-					time.Sleep(time.Duration(2*time.Second))
-					c.done <- nil
-					this.c <- c
-				} else {
-					this.nc <- c
+				select {
+				case <- oc.done:
+					{
+						c, err := NewConsumer(*uri, *exchange, *exchangeType, *queue, *bindingKey, *consumerTag)
+						if err != nil {
+							log.Printf("create new consumer error%s", err)
+							time.Sleep(time.Duration(2*time.Second))
+							c.done <- nil
+						}
+						this.consumer <- c
+					}
+				default:
+					{
+						go oc.handle(this)
+					}
 				}
-			}
-		}
-	}
-}
-func (this *Work) work() {
-	for {
-		select {
-		case nc := <- this.nc:
-			{
-				go nc.handle(this)
-			}
-		case np := <- this.np:
-			{
-				go np.handle(this)
 			}
 		}
 	}
@@ -89,24 +85,22 @@ func main() {
 	flag.Parse()
 	work := NewWork()
 	go work.work()
-	go work.renew()
 	for i := 0; i < nWorker; i++ {
 		c, err := NewConsumer(*uri, *exchange, *exchangeType, *queue, *bindingKey, *consumerTag)
 		if err != nil {
-			log.Printf("%s", err)
+			log.Printf("create new consumer failed%s", err)
+			c.done <- nil
 			time.Sleep(time.Duration(2*time.Second))
-			work.c <- c
-		} else {
-			work.nc <- c
 		}
+		work.consumer <- c
+
 		p, err := NewProducer(*mongouri, *dbname, *collection, *user, *password)
 		if err != nil {
-			log.Printf("%s", err)
+			p.done <- nil
+			log.Printf("create new producer failed%s", err)
 			time.Sleep(time.Duration(2*time.Second))
-			work.p <- p
-		} else {
-			work.np <- p
 		}
+ 		work.producer <- p
 	}
 	select {
 	}

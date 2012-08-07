@@ -16,15 +16,15 @@ func NewProducer(mongouri, dbname, collection, user, password string) (m *Produc
 	m = new(Producer)
 	m.session, err =  mgo.Dial(mongouri)
 	if err != nil {
-		return nil, err
+		return
 	}
 	db := m.session.DB(dbname)
 	err = db.Login(user,password)
 	if err != nil {
-		return nil, err
+		return
 	}
 	m.collection = db.C(collection)
-	return m, err
+	return
 }
 
 func (this *Producer)handle(work *Work) {

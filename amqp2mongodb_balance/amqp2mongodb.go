@@ -104,6 +104,7 @@ func main() {
 
 		p, err := NewProducer(*mongouri, *dbname, *collection, *user, *password)
 		if err != nil {
+			p.session = nil
 			p.done <- nil
 			log.Printf("create new producer failed%s", err)
 			time.Sleep(time.Duration(2 * time.Second))

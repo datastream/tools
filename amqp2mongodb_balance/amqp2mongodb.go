@@ -25,29 +25,30 @@ const nWorker = 10
 type Work struct {
 	consumer chan *Consumer
 	producer chan *Producer
-	message chan *string
-	done chan int
+	message  chan *string
+	done     chan int
 }
+
 func NewWork() *Work {
-	 return &Work{
+	return &Work{
 		consumer: make(chan *Consumer),
 		producer: make(chan *Producer),
-		message: make(chan *string),
-		done: make(chan int),
+		message:  make(chan *string),
+		done:     make(chan int),
 	}
 }
-func (this *Work)work() {
+func (this *Work) work() {
 	for {
 		select {
-		case op := <- this.producer:
+		case op := <-this.producer:
 			{
 				select {
-				case <- op.done:
+				case <-op.done:
 					{
 						p, err := NewProducer(*mongouri, *dbname, *collection, *user, *password)
 						if err != nil {
 							log.Printf("create new producer error%s", err)
-							time.Sleep(time.Duration(2*time.Second))
+							time.Sleep(time.Duration(2 * time.Second))
 							p.done <- nil
 						}
 						this.producer <- p
@@ -59,15 +60,15 @@ func (this *Work)work() {
 					}
 				}
 			}
-		case oc := <- this.consumer:
+		case oc := <-this.consumer:
 			{
 				select {
-				case <- oc.done:
+				case <-oc.done:
 					{
 						c, err := NewConsumer(*uri, *exchange, *exchangeType, *queue, *bindingKey, *consumerTag)
 						if err != nil {
 							log.Printf("create new consumer error%s", err)
-							time.Sleep(time.Duration(2*time.Second))
+							time.Sleep(time.Duration(2 * time.Second))
 							c.done <- nil
 						}
 						this.consumer <- c
@@ -90,7 +91,7 @@ func main() {
 		if err != nil {
 			log.Printf("create new consumer failed%s", err)
 			c.done <- nil
-			time.Sleep(time.Duration(2*time.Second))
+			time.Sleep(time.Duration(2 * time.Second))
 		}
 		work.consumer <- c
 
@@ -98,10 +99,9 @@ func main() {
 		if err != nil {
 			p.done <- nil
 			log.Printf("create new producer failed%s", err)
-			time.Sleep(time.Duration(2*time.Second))
+			time.Sleep(time.Duration(2 * time.Second))
 		}
- 		work.producer <- p
+		work.producer <- p
 	}
-	select {
-	}
+	select {}
 }

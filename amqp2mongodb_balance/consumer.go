@@ -6,11 +6,11 @@ import (
 )
 
 type Consumer struct {
-	conn    *amqp.Connection
-	channel *amqp.Channel
-	tag     string
+	conn       *amqp.Connection
+	channel    *amqp.Channel
+	tag        string
 	deliveries <-chan amqp.Delivery
-	done    chan error
+	done       chan error
 }
 
 func NewConsumer(amqpURI, exchange, exchangeType, queue, key, ctag string) (*Consumer, error) {
@@ -52,11 +52,11 @@ func NewConsumer(amqpURI, exchange, exchangeType, queue, key, ctag string) (*Con
 
 	log.Printf("declared Exchange, declaring Queue (%s)", queue)
 	state, err := c.channel.QueueDeclare(
-		queue,            // name of the queue
+		queue,             // name of the queue
 		amqp.UntilDeleted, // lifetime = auto-delete
-		false,            // exclusive
-		false,            // noWait
-		nil,              // arguments
+		false,             // exclusive
+		false,             // noWait
+		nil,               // arguments
 	)
 	if err != nil {
 		log.Printf("Queue Declare: %s", err)
@@ -94,15 +94,15 @@ func NewConsumer(amqpURI, exchange, exchangeType, queue, key, ctag string) (*Con
 	return c, nil
 }
 
-func (this *Consumer)handle(work *Work) {
+func (this *Consumer) handle(work *Work) {
 	for d := range this.deliveries {
 		/* log.Printf(
-		 "got %dB delivery: [%v] %s",
-		 len(d.Body),
-		 d.DeliveryTag,
-		 d.Body,
-		 )
-		 */
+		"got %dB delivery: [%v] %s",
+		len(d.Body),
+		d.DeliveryTag,
+		d.Body,
+		)
+		*/
 		rst := string(d.Body)
 		work.message <- &rst
 		d.Ack(false)

@@ -1,29 +1,30 @@
 package main
 
 import (
-	"strings"
-	"strconv"
 	"log"
 	"regexp"
+	"strconv"
+	"strings"
 )
+
 type Metric struct {
 	Retention string
-	App string
-	Name string
-	Colo string
-	Hostname string
-	Value float64
+	App       string
+	Name      string
+	Colo      string
+	Hostname  string
+	Value     float64
 	Timestamp int64
 }
 
 func NewMetric(s string) *Metric {
 	this := new(Metric)
-	splitstring := strings.Split(s," ")
-	splitname := strings.Split(splitstring[0],".")
-	this.Hostname = splitname[len(splitname) -1]
-	this.Colo = splitname[len(splitname) - 2]
+	splitstring := strings.Split(s, " ")
+	splitname := strings.Split(splitstring[0], ".")
+	this.Hostname = splitname[len(splitname)-1]
+	this.Colo = splitname[len(splitname)-2]
 	var p int
-	if rst, _ :=regexp.MatchString("(1sec|10sec|1min|5min)",splitname[0]); rst {
+	if rst, _ := regexp.MatchString("(1sec|10sec|1min|5min)", splitname[0]); rst {
 		this.Retention = splitname[0]
 		this.App = splitname[1]
 		p = 2
@@ -32,7 +33,7 @@ func NewMetric(s string) *Metric {
 		p = 1
 	}
 
-	for i := p; i < len(splitname) -2 ; i ++ {
+	for i := p; i < len(splitname)-2; i++ {
 		if len(this.Name) > 0 {
 			this.Name += "."
 		}

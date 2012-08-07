@@ -22,10 +22,15 @@ var (
 
 const nWorker = 10
 
+type Message struct {
+	done    chan int
+	content string
+}
+
 type Work struct {
 	consumer chan *Consumer
 	producer chan *Producer
-	message  chan *string
+	message  chan *Message
 	done     chan int
 }
 
@@ -33,7 +38,7 @@ func NewWork() *Work {
 	return &Work{
 		consumer: make(chan *Consumer),
 		producer: make(chan *Producer),
-		message:  make(chan *string),
+		message:  make(chan *Message),
 		done:     make(chan int),
 	}
 }
@@ -42,42 +47,42 @@ func (this *Work) work() {
 		select {
 		case op := <-this.producer:
 			{
-				select {
-				case <-op.done:
-					{
-						p, err := NewProducer(*mongouri, *dbname, *collection, *user, *password)
-						if err != nil {
-							log.Printf("create new producer error%s", err)
-							time.Sleep(time.Duration(2 * time.Second))
-							p.done <- nil
-						}
-						this.producer <- p
-
-					}
-				default:
-					{
-						go op.handle(this)
-					}
+				if op.session != nil {
+					go op.handle(this)
 				}
+				go func() {
+					select {
+					case <-op.done:
+						{
+							p, err := NewProducer(*mongouri, *dbname, *collection, *user, *password)
+							if err != nil {
+								log.Printf("create new producer error%s", err)
+								time.Sleep(time.Duration(2 * time.Second))
+								p.done <- nil
+							}
+							this.producer <- p
+
+						}
+					}
+				}()
 			}
 		case oc := <-this.consumer:
 			{
-				select {
-				case <-oc.done:
-					{
-						c, err := NewConsumer(*uri, *exchange, *exchangeType, *queue, *bindingKey, *consumerTag)
-						if err != nil {
-							log.Printf("create new consumer error%s", err)
-							time.Sleep(time.Duration(2 * time.Second))
-							c.done <- nil
+				go oc.handle(this)
+				go func() {
+					select {
+					case <-oc.done:
+						{
+							c, err := NewConsumer(*uri, *exchange, *exchangeType, *queue, *bindingKey, *consumerTag)
+							if err != nil {
+								log.Printf("create new consumer error%s", err)
+								time.Sleep(time.Duration(2 * time.Second))
+								c.done <- nil
+							}
+							this.consumer <- c
 						}
-						this.consumer <- c
 					}
-				default:
-					{
-						go oc.handle(this)
-					}
-				}
+				}()
 			}
 		}
 	}

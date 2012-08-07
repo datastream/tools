@@ -31,21 +31,25 @@ func NewProducer(mongouri, dbname, collection, user, password string) (m *Produc
 func (this *Producer) handle(work *Work) {
 	for {
 		var err error
-		body := <-work.message
-		metrics := strings.Split(strings.TrimSpace(*body), "\n")
+		msg := <-work.message
+		metrics := strings.Split(strings.TrimSpace(msg.content), "\n")
 		for i := range metrics {
 			err = this.collection.Insert(NewMetric(metrics[i]))
 			if err != nil {
 				log.Printf("mongodb insert failed")
 				this.session.Close()
+				this.session = nil
+				work.producer <- this
+				this.done <- err
 				break
 			}
 		}
 		if err != nil {
-			this.done <- err
-			work.producer <- this
-			work.message <- body
+			go func() {
+				work.message <- msg
+			} ()
 			break
 		}
+		msg.done <- 1
 	}
 }

@@ -95,17 +95,22 @@ func NewConsumer(amqpURI, exchange, exchangeType, queue, key, ctag string) (*Con
 }
 
 func (this *Consumer) handle(work *Work) {
-	for d := range this.deliveries {
-		/* log.Printf(
-		"got %dB delivery: [%v] %s",
-		len(d.Body),
-		d.DeliveryTag,
-		d.Body,
-		)
-		*/
-		rst := string(d.Body)
-		work.message <- &rst
-		d.Ack(false)
+	for {
+		select {
+		case d := <-this.deliveries:
+			{
+				rst := string(d.Body)
+				msg := &Message{
+					done:    make(chan int),
+					content: rst,
+				}
+				go func() {
+					work.message <- msg
+					<-msg.done
+					d.Ack(false)
+				}()
+			}
+		}
 	}
 	log.Printf("handle: deliveries channel closed")
 	this.done <- nil

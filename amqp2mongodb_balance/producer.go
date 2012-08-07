@@ -41,8 +41,8 @@ func (this *Producer)handle(work *Work) {
 			}
 		}
 		if err != nil {
-			work.producer <- this
 			this.done <- err
+			work.producer <- this
 			work.message <- body
 			break
 		}

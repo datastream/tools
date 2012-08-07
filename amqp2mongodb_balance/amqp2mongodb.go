@@ -55,13 +55,12 @@ func (this *Work) work() {
 					case <-op.done:
 						{
 							p, err := NewProducer(*mongouri, *dbname, *collection, *user, *password)
+							this.producer <- p
 							if err != nil {
 								log.Printf("create new producer error%s", err)
-								time.Sleep(time.Duration(2 * time.Second))
 								p.done <- nil
+								time.Sleep(time.Duration(2 * time.Second))
 							}
-							this.producer <- p
-
 						}
 					}
 				}()
@@ -76,12 +75,12 @@ func (this *Work) work() {
 					case <-oc.done:
 						{
 							c, err := NewConsumer(*uri, *exchange, *exchangeType, *queue, *bindingKey, *consumerTag)
+							this.consumer <- c
 							if err != nil {
 								log.Printf("create new consumer error%s", err)
-								time.Sleep(time.Duration(2 * time.Second))
 								c.done <- nil
+								time.Sleep(time.Duration(2 * time.Second))
 							}
-							this.consumer <- c
 						}
 					}
 				}()

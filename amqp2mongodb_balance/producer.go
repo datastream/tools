@@ -35,14 +35,14 @@ func (this *Producer)handle(work *Work) {
 		for i := range metrics {
 			err = this.collection.Insert(NewMetric(metrics[i]))
 			if err != nil {
-				log.Printf("mongodb insert failed", body)
+				log.Printf("mongodb insert failed")
 				this.session.Close()
 				break
 			}
 		}
 		if err != nil {
-			this.done <- err
 			work.producer <- this
+			this.done <- err
 			work.message <- body
 			break
 		}

@@ -47,7 +47,7 @@ func (this *Producer) handle(work *Work) {
 		if err != nil {
 			go func() {
 				work.message <- msg
-			} ()
+			}()
 			break
 		}
 		msg.done <- 1

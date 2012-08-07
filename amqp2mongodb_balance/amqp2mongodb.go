@@ -68,7 +68,9 @@ func (this *Work) work() {
 			}
 		case oc := <-this.consumer:
 			{
-				go oc.handle(this)
+				if oc.conn != nil {
+					go oc.handle(this)
+				}
 				go func() {
 					select {
 					case <-oc.done:

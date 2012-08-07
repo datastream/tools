@@ -97,8 +97,11 @@ func NewConsumer(amqpURI, exchange, exchangeType, queue, key, ctag string) (*Con
 func (this *Consumer) handle(work *Work) {
 	for {
 		select {
-		case d := <-this.deliveries:
+		case d, ok := <-this.deliveries:
 			{
+				if !ok {
+					break
+				}
 				rst := string(d.Body)
 				msg := &Message{
 					done:    make(chan int),
@@ -113,6 +116,9 @@ func (this *Consumer) handle(work *Work) {
 		}
 	}
 	log.Printf("handle: deliveries channel closed")
+	this.conn.Close()
+	this.channel.Close()
+	this.conn = nil
 	this.done <- nil
 	work.consumer <- this
 }

@@ -24,6 +24,7 @@ func NewProducer(mongouri, dbname, collection, user, password string) (m *Produc
 		return
 	}
 	m.collection = db.C(collection)
+	m.done = make(chan error)
 	return
 }
 

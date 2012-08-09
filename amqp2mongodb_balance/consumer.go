@@ -107,8 +107,8 @@ func (this *Consumer) handle(work *Work) {
 					done:    make(chan int),
 					content: rst,
 				}
+				work.message <- msg
 				go func() {
-					work.message <- msg
 					<-msg.done
 					d.Ack(false)
 				}()

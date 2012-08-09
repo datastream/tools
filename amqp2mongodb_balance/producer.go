@@ -35,14 +35,19 @@ func (this *Producer) handle(work *Work) {
 		msg := <-work.message
 		metrics := strings.Split(strings.TrimSpace(msg.content), "\n")
 		for i := range metrics {
-			err = this.collection.Insert(NewMetric(metrics[i]))
-			if err != nil {
-				log.Printf("mongodb insert failed")
-				this.session.Close()
-				this.session = nil
-				work.producer <- this
-				this.done <- err
-				break
+			record := NewMetric(metrics[i])
+			if record != nil {
+				err = this.collection.Insert(record)
+				if err != nil {
+					log.Println("mongodb insert failed")
+					this.session.Close()
+					this.session = nil
+					work.producer <- this
+					this.done <- err
+					break
+				}
+			} else {
+				log.Println("metrics error", metrics[i])
 			}
 		}
 		if err != nil {

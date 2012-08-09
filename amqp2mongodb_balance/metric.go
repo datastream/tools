@@ -21,6 +21,10 @@ func NewMetric(s string) *Metric {
 	this := new(Metric)
 	splitstring := strings.Split(s, " ")
 	splitname := strings.Split(splitstring[0], ".")
+	if len(splitname) < 3 {
+		log.Println("metrics not match",s)
+		return nil
+	}
 	this.Hostname = splitname[len(splitname)-1]
 	this.Colo = splitname[len(splitname)-2]
 	var p int
@@ -44,7 +48,7 @@ func NewMetric(s string) *Metric {
 		this.Timestamp, _ = strconv.ParseInt(splitstring[2], 10, 64)
 		return this
 	} else if len(splitstring) != 1 {
-		log.Printf("metric not recognized: ", s)
+		log.Println("metric not recognized: ", s)
 	}
 	return nil
 }

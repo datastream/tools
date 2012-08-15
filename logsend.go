@@ -4,9 +4,9 @@ import (
 	"bufio"
 	"fmt"
 	"net"
-	"os"
-	"time"
+	"os/exec"
 	"flag"
+	"io"
 )
 
 var (
@@ -15,34 +15,42 @@ var (
 func init() {
 	flag.Parse()
 }
+var done chan int
 
 func main() {
-	logchan := make(chan []byte)
-	done := make(chan int)
+	logchan := make(chan *[]byte)
+	done = make(chan int)
 	go run_server(logchan)
 	go read_log(logchan)
 	<-done
 }
-func read_log(logchan chan []byte) {
-	file, err := os.Open(*filename)
+func read_log(logchan chan *[]byte) {
+	cmd := exec.Command("/bin/cat", *filename)
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		fmt.Printf("Read Pipe error")
+		fmt.Println("Read Pipe error", err)
 	}
-	f := bufio.NewReaderSize(file, 10240)
+	f := bufio.NewReaderSize(stdout, 10240)
 	line := make([]byte,1024)
+	err = cmd.Start()
+	if err != nil {
+		fmt.Println("run error", err)
+	}
 	for {
 		n, err := f.Read(line)
-		if err != nil {
-			time.Sleep(1 * 1e7)
+		if err == io.EOF {
+			done <- 1
+			break
 		}
-		logchan <- line[0:n]
+		line = line[0:n]
+		logchan <- &line
 	}
 }
-func send_log(fd net.Conn, logchan chan []byte) {
+func send_log(fd net.Conn, logchan chan *[]byte) {
 	defer fd.Close()
 	for {
 		msg := <-logchan
-		_, err := fd.Write(msg)
+		_, err := fd.Write(*msg)
 		if err != nil {
 			fmt.Printf("TCP connect write error")
 			logchan <- msg
@@ -51,7 +59,7 @@ func send_log(fd net.Conn, logchan chan []byte) {
 	}
 	fmt.Printf("TCP closed!\n")
 }
-func run_server(log chan []byte) {
+func run_server(log chan *[]byte) {
 	lp, err := net.Listen("tcp", "0.0.0.0:1234")
 	if err != nil {
 		fmt.Printf("Bind 1234 failed")

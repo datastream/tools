@@ -144,19 +144,35 @@ func sendip(name string, params map[string][]string) string {
 				return "null action\n"
 			}
 			act := []byte(params["action_type"][0])
-			if bytes.Compare(act, []byte("add")) != 0 && bytes.Compare(act, []byte("del")) != 0 && bytes.Compare(act, []byte("list")) != 0 {
+			if bytes.Compare(act, []byte("add")) != 0 &&
+				bytes.Compare(act, []byte("del")) != 0 &&
+				bytes.Compare(act, []byte("clear")) != 0 &&
+				bytes.Compare(act, []byte("list")) != 0 {
 				return "wrong action\n"
 			}
 			if bytes.Compare(act, []byte("list")) == 0 {
-				rst += read_list(line, "list")
+				rst += line + "\n" + read_list(line, "list") + "-----------\n"
 			}
 			if len(params["ip"]) > 0 {
-				go handle(line, params["action_type"][0], params["ip"][0], erro)
+				if len(params["timeout"]) != 0 && bytes.Compare(act, []byte("add")) == 0 {
+					go handle(line, params["action_type"][0],
+						params["ip"][0], params["timeout"][0], erro)
+				} else {
+					go handle(line, params["action_type"][0],
+						params["ip"][0], "", erro)
+				}
 				go func() {
 					err := <-erro
 					if err != nil {
 						time.Sleep(2 * time.Second)
-						go handle(line, params["action_type"][0], params["ip"][0], erro)
+						if len(params["timeout"]) != 0 &&
+							bytes.Compare(act, []byte("add")) == 0 {
+							go handle(line, params["action_type"][0],
+								params["ip"][0], params["timeout"][0], erro)
+						} else {
+							go handle(line, params["action_type"][0],
+								params["ip"][0], "", erro)
+						}
 						<-erro
 					}
 				}()
@@ -185,7 +201,7 @@ func read_list(host, action string) string {
 	}
 	return string(body)
 }
-func handle(host, action, data string, err chan error) {
+func handle(host, action, data, timeout string, err chan error) {
 	client, e := net.Dial("tcp", host[:len(host)-1])
 	if e != nil {
 		log.Println("dial error:", host, " ", e)
@@ -194,6 +210,10 @@ func handle(host, action, data string, err chan error) {
 	}
 	defer client.Close()
 	_, e = client.Write([]byte(action + "\n"))
+	if timeout != "" {
+		_, e = client.Write([]byte("timeout\n"))
+		_, e = client.Write([]byte(timeout + "\n"))
+	}
 	_, e = client.Write([]byte(data + "\n"))
 	if e != nil {
 		log.Println("send error", data)

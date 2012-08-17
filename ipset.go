@@ -28,6 +28,7 @@ type ipset struct {
 type request struct {
 	ip     string
 	action string
+	timeout int
 }
 
 func main() {
@@ -80,7 +81,7 @@ func run_command(req chan *request, expire_chan chan *ipset) {
 				ip:  ip_list[i],
 				set: hashname,
 			}
-			exp.timer = time.AfterFunc(12*time.Hour, func() { expire_chan <- exp })
+			exp.timer = time.AfterFunc(time.Duration(rq.timeout), func() { expire_chan <- exp })
 		}
 	}
 }
@@ -147,7 +148,7 @@ func handle(fd net.Conn, req chan *request) {
 		log.Println("Read action failed", line)
 		return
 	}
-	if bytes.Compare(line, []byte("del")) == 0 || bytes.Compare(line, []byte("add")) == 0 {
+	if bytes.Compare(line, []byte("del")) == 0 {
 		if line, _, err = reader.ReadLine(); err == nil {
 			rst.ip = string(line)
 		} else {
@@ -155,13 +156,42 @@ func handle(fd net.Conn, req chan *request) {
 			return
 		}
 		req <- rst
-	} else {
+	}
+	if bytes.Compare(line, []byte("add")) == 0 {
+		if line, _, err = reader.ReadLine(); err == nil {
+			if bytes.Compare(line, []byte("timeout")) == 0 {
+				if line, _, err = reader.ReadLine(); err == nil {
+					rst.timeout, _ = strconv.Atoi(string(line))
+				} else {
+					log.Println("Read time failed", line)
+					return
+				}
+			} else {
+				rst.timeout = 3600*8
+				rst.ip = string(line)
+			}
+		} else {
+			log.Println("Read ip failed", line)
+			return
+		}
+		req <- rst
+	}
+	if bytes.Compare(line, []byte("list")) == 0 {
 		cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-L")
 		if out, err := cmd.Output(); err != nil {
 			log.Println("ipset list failed ")
 			fd.Write([]byte("list failed\n"))
 		} else {
 			fd.Write(out)
+		}
+	}
+	if bytes.Compare(line, []byte("clear")) == 0 {
+		cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-F")
+		if _, err := cmd.Output(); err != nil {
+			log.Println("ipset clear failed ")
+			fd.Write([]byte("list clear \n"))
+		} else {
+			fd.Write([]byte("all ip cleaned\n"))
 		}
 	}
 }

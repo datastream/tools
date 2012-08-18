@@ -77,11 +77,13 @@ func run_command(req chan *request, expire_chan chan *ipset) {
 				create_hash(hashname)
 				add_hashlist(hashname)
 			}
-			exp := &ipset{
-				ip:  ip_list[i],
-				set: hashname,
+			if rq.action == "add" {
+				exp := &ipset{
+					ip:  ip_list[i],
+					set: hashname,
+				}
+				exp.timer = time.AfterFunc(time.Duration(rq.timeout)*time.Second, func() { expire_chan <- exp })
 			}
-			exp.timer = time.AfterFunc(time.Duration(rq.timeout), func() { expire_chan <- exp })
 		}
 	}
 }
@@ -116,7 +118,7 @@ func expire_ip(expire_chan chan *ipset) {
 		if err != nil {
 			log.Println("ipset delete error", err)
 		} else {
-			log.Println("/usr/bin/sudo", "/usr/sbin/ipset", "-D", item.set, item.ip)
+			log.Println("auto expire:","/usr/bin/sudo", "/usr/sbin/ipset", "-D", item.set, item.ip)
 		}
 	}
 }
@@ -166,6 +168,12 @@ func handle(fd net.Conn, req chan *request) {
 					log.Println("Read time failed", line)
 					return
 				}
+				if line, _, err = reader.ReadLine(); err == nil {
+					rst.ip = string(line)
+				} else {
+					log.Println("Read ip failed", line)
+					return
+				}
 			} else {
 				rst.timeout = 3600*8
 				rst.ip = string(line)
@@ -176,6 +184,7 @@ func handle(fd net.Conn, req chan *request) {
 		}
 		req <- rst
 	}
+
 	if bytes.Compare(line, []byte("list")) == 0 {
 		cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-L")
 		if out, err := cmd.Output(); err != nil {

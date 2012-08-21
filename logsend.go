@@ -18,13 +18,13 @@ func init() {
 var done chan int
 
 func main() {
-	logchan := make(chan *[]byte)
+	logchan := make(chan []byte)
 	done = make(chan int)
 	go run_server(logchan)
 	go read_log(logchan)
 	<-done
 }
-func read_log(logchan chan *[]byte) {
+func read_log(logchan chan []byte) {
 	cmd := exec.Command("/bin/cat", *filename)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -42,15 +42,14 @@ func read_log(logchan chan *[]byte) {
 			done <- 1
 			break
 		}
-		line = line[0:n]
-		logchan <- &line
+		logchan <- line[0:n]
 	}
 }
-func send_log(fd net.Conn, logchan chan *[]byte) {
+func send_log(fd net.Conn, logchan chan []byte) {
 	defer fd.Close()
 	for {
 		msg := <-logchan
-		_, err := fd.Write(*msg)
+		_, err := fd.Write(msg)
 		if err != nil {
 			fmt.Printf("TCP connect write error")
 			logchan <- msg
@@ -59,7 +58,7 @@ func send_log(fd net.Conn, logchan chan *[]byte) {
 	}
 	fmt.Printf("TCP closed!\n")
 }
-func run_server(log chan *[]byte) {
+func run_server(logchan chan []byte) {
 	lp, err := net.Listen("tcp", "0.0.0.0:1234")
 	if err != nil {
 		fmt.Printf("Bind 1234 failed")
@@ -71,6 +70,6 @@ func run_server(log chan *[]byte) {
 		if error != nil {
 			fmt.Printf("accpet error %s", error)
 		}
-		go send_log(fd, log)
+		go send_log(fd, logchan)
 	}
 }

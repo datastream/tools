@@ -39,7 +39,7 @@ func main() {
 	req := make(chan *request)
 	done := make(chan int)
 	expire_chan := make(chan *ipset)
-	num = 0
+	num = -1
 	create_set()
 	create_hash(hashname)
 	add_hashlist(hashname)
@@ -59,23 +59,26 @@ func run_command(req chan *request, expire_chan chan *ipset) {
 		ip_list := strings.Split(rq.ip, ",")
 		if rq.action == "add" {
 			for i := range ip_list {
+				if len(ip_list[i]) < 7 {
+					log.Println("not correct ip:", ip_list[i])
+					continue
+				}
 				cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-A", hashname, ip_list[i])
 				var output bytes.Buffer
 				cmd.Stderr = &output
 				err := cmd.Run()
 				if err != nil {
 					log.Println("ipset ", rq.action, " error:", ip_list[i])
-					continue
-				}
-
-				reg, e := regexp.Compile("set is full")
-				if e == nil && reg.MatchString(output.String()) {
-					log.Println("ipset ", hashname, " is full")
-					num += 1
-					hashname = hashname + strconv.Itoa(num)
-					i--
-					create_hash(hashname)
-					add_hashlist(hashname)
+					reg, e := regexp.Compile("set is full")
+					if e == nil && reg.MatchString(output.String()) {
+						log.Println("ipset ", hashname, " is full")
+						num += 1
+						hashname = hashname + strconv.Itoa(num)
+						create_hash(hashname)
+						add_hashlist(hashname)
+					} else {
+						continue
+					}
 				}
 				if rq.action == "add" {
 					exp := &ipset{

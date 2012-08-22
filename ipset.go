@@ -17,6 +17,8 @@ var (
 	port     = flag.String("port", "1234", "access port")
 	blockset = flag.String("blockset", "ddos", "ddos ipset")
 )
+const basename = "ddoshash"
+
 var num int
 var hashname string
 
@@ -35,7 +37,7 @@ type request struct {
 
 func main() {
 	flag.Parse()
-	hashname = "ddoshash"
+	hashname = basename
 	req := make(chan *request)
 	done := make(chan int)
 	expire_chan := make(chan *ipset)
@@ -73,7 +75,7 @@ func run_command(req chan *request, expire_chan chan *ipset) {
 					if e == nil && reg.MatchString(output.String()) {
 						log.Println("ipset ", hashname, " is full")
 						num += 1
-						hashname = hashname + strconv.Itoa(num)
+						hashname = basename + strconv.Itoa(num)
 						create_hash(hashname)
 						add_hashlist(hashname)
 					} else {
@@ -133,9 +135,20 @@ func create_set() {
 }
 
 func create_hash(name string) {
+	full := false
+	if len(hashlist) >= 8 {
+		hashname = hashlist[0]
+		num = -1
+		name = hashname
+		full = true
+		log.Println("setlist full, reuse ", hashname)
+	}
 	_, err := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-L", name).Output()
 	if err == nil {
 		log.Println("iphash ", name, " exist!")
+		if full {
+			_, _ = exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-F", name).Output()
+		}
 		return
 	}
 	cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-N", name, "iphash")
@@ -245,7 +258,7 @@ func handle(fd net.Conn, req chan *request) {
 		} else {
 			fd.Write([]byte("all ip cleaned\n"))
 		}
-		hashname = "ddoshash"
-		num = 0
+		hashname = basename
+		num = -1
 	}
 }

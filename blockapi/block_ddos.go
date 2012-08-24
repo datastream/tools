@@ -20,12 +20,24 @@ import (
 
 var (
 	port = flag.String("port", "1234", "access port")
+        mongouri   = flag.String("mongouri", "mongodb://myuser:mypass@localhost:27017/mydatabase", "MONGODB RUI")
+        user       = flag.String("user", "admin", "mongodb user")
+        password   = flag.String("passwd", "admin", "mongodb password")
+        dbname     = flag.String("db", "mydatabase", "mongodb database")
+        collection = flag.String("collection", "metrics", "mongodb collection")
 )
 
 type Request struct {
 	url  string
 	data url.Values
 }
+
+type ipitem struct {
+	ip string
+	hosts []string
+}
+
+var check_chan chan ipitem
 
 func genrequest(requrl string, host string, postdata map[string][]string) string {
 	file, err := os.Open("./" + host)
@@ -129,6 +141,7 @@ func sendip(name string, params map[string][]string) string {
 	} else {
 		f := bufio.NewReader(file)
 		var rst string
+		var lines []string
 		for {
 			line, err := f.ReadString('\n')
 			if err == io.EOF {
@@ -138,12 +151,15 @@ func sendip(name string, params map[string][]string) string {
 				log.Println("file readline error")
 				break
 			}
+			lines = append(lines, strings.TrimSpace(line))
 			erro := make(chan error)
+
 			if len(params["action_type"]) == 0 {
 				log.Println(params["action_type"])
 				return "null action\n"
 			}
 			act := []byte(params["action_type"][0])
+
 			if bytes.Compare(act, []byte("add")) != 0 &&
 				bytes.Compare(act, []byte("del")) != 0 &&
 				bytes.Compare(act, []byte("clear")) != 0 &&
@@ -153,12 +169,13 @@ func sendip(name string, params map[string][]string) string {
 			if bytes.Compare(act, []byte("list")) == 0 {
 				rst += line + "\n" + read_list(line, "list") + "-----------\n"
 			}
+
 			if len(params["ip"]) > 0 {
 				if len(params["timeout"]) != 0 && bytes.Compare(act, []byte("add")) == 0 {
-					go handle(line, params["action_type"][0],
+					go handle(strings.TrimSpace(line), params["action_type"][0],
 						params["ip"][0], params["timeout"][0], erro)
 				} else {
-					go handle(line, params["action_type"][0],
+					go handle(strings.TrimSpace(line), params["action_type"][0],
 						params["ip"][0], "", erro)
 				}
 				go func() {
@@ -167,10 +184,12 @@ func sendip(name string, params map[string][]string) string {
 						time.Sleep(2 * time.Second)
 						if len(params["timeout"]) != 0 &&
 							bytes.Compare(act, []byte("add")) == 0 {
-							go handle(line, params["action_type"][0],
+							go handle(strings.TrimSpace(line),
+								params["action_type"][0],
 								params["ip"][0], params["timeout"][0], erro)
 						} else {
-							go handle(line, params["action_type"][0],
+							go handle(strings.TrimSpace(line),
+								params["action_type"][0],
 								params["ip"][0], "", erro)
 						}
 						<-erro
@@ -178,6 +197,14 @@ func sendip(name string, params map[string][]string) string {
 				}()
 			}
 		}
+		go func() {
+			ip_item := &ipitem {
+				ip: params["ip"][0],
+				hosts: lines,
+			}
+			time.Sleep(time.Second*10)
+			check_chan <- *ip_item
+		} ()
 		return rst
 	}
 	return "pushed\n"
@@ -202,7 +229,7 @@ func read_list(host, action string) string {
 	return string(body)
 }
 func handle(host, action, data, timeout string, err chan error) {
-	client, e := net.Dial("tcp", host[:len(host)-1])
+	client, e := net.Dial("tcp", host)
 	if e != nil {
 		log.Println("dial error:", host, " ", e)
 		err <- e
@@ -220,10 +247,34 @@ func handle(host, action, data, timeout string, err chan error) {
 		err <- e
 	}
 	err <- nil
+	return
+}
+func connect_db(mongouri, dbname, collection, user, password string) *Mongo {
+	for {
+		m, err := NewMongo(mongouri, dbname, collection, user, password)
+		if err != nil {
+			time.Sleep(time.Second*2)
+		} else {
+			return m
+		}
+	}
+	return nil
+}
+
+func check_whitelist(check_chan chan ipitem) {
+	m := connect_db(*mongouri, *dbname, *collection, *user, *password)
+	go m.handle(check_chan)
+	for {
+		<- m.done
+		m = connect_db(*mongouri, *dbname, *collection, *user, *password)
+		go m.handle(check_chan)
+	}
 }
 
 func main() {
 	flag.Parse()
+	check_chan = make(chan ipitem)
+	go check_whitelist(check_chan)
 	h := web.NewRouter().
 		Register("/<:.*>", "*", web.FormHandler(8148, false, web.HandlerFunc(blockApi)))
 	server.Run(":"+*port, h)

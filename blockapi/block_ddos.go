@@ -19,12 +19,12 @@ import (
 )
 
 var (
-	port = flag.String("port", "1234", "access port")
-        mongouri   = flag.String("mongouri", "mongodb://myuser:mypass@localhost:27017/mydatabase", "MONGODB RUI")
-        user       = flag.String("user", "admin", "mongodb user")
-        password   = flag.String("passwd", "admin", "mongodb password")
-        dbname     = flag.String("db", "mydatabase", "mongodb database")
-        collection = flag.String("collection", "metrics", "mongodb collection")
+	port       = flag.String("port", "1234", "access port")
+	mongouri   = flag.String("mongouri", "mongodb://myuser:mypass@localhost:27017/mydatabase", "MONGODB RUI")
+	user       = flag.String("user", "admin", "mongodb user")
+	password   = flag.String("passwd", "admin", "mongodb password")
+	dbname     = flag.String("db", "mydatabase", "mongodb database")
+	collection = flag.String("collection", "metrics", "mongodb collection")
 )
 
 type Request struct {
@@ -33,7 +33,7 @@ type Request struct {
 }
 
 type ipitem struct {
-	ip string
+	ip    string
 	hosts []string
 }
 
@@ -198,13 +198,13 @@ func sendip(name string, params map[string][]string) string {
 			}
 		}
 		go func() {
-			ip_item := &ipitem {
-				ip: params["ip"][0],
+			ip_item := &ipitem{
+				ip:    params["ip"][0],
 				hosts: lines,
 			}
-			time.Sleep(time.Second*10)
+			time.Sleep(time.Second * 10)
 			check_chan <- *ip_item
-		} ()
+		}()
 		return rst
 	}
 	return "pushed\n"
@@ -253,7 +253,7 @@ func connect_db(mongouri, dbname, collection, user, password string) *Mongo {
 	for {
 		m, err := NewMongo(mongouri, dbname, collection, user, password)
 		if err != nil {
-			time.Sleep(time.Second*2)
+			time.Sleep(time.Second * 2)
 		} else {
 			return m
 		}
@@ -265,7 +265,7 @@ func check_whitelist(check_chan chan ipitem) {
 	m := connect_db(*mongouri, *dbname, *collection, *user, *password)
 	go m.handle(check_chan)
 	for {
-		<- m.done
+		<-m.done
 		m = connect_db(*mongouri, *dbname, *collection, *user, *password)
 		go m.handle(check_chan)
 	}

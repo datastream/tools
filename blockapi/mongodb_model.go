@@ -3,8 +3,8 @@ package main
 import (
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
-	"strings"
 	"log"
+	"strings"
 )
 
 type Mongo struct {
@@ -33,7 +33,7 @@ func NewMongo(mongouri, dbname, collection, user, password string) (m *Mongo, er
 }
 func (this *Mongo) handle(check_chan chan ipitem) {
 	for {
-		req := <- check_chan
+		req := <-check_chan
 		var err error
 		var gateway string
 		ip_list := strings.Split(req.ip, ",")
@@ -42,14 +42,14 @@ func (this *Mongo) handle(check_chan chan ipitem) {
 				continue
 			}
 			var n int
-			n, err = this.collection.Find(bson.M{"ip":strings.TrimSpace(ip_list[i])}).Count()
+			n, err = this.collection.Find(bson.M{"ip": strings.TrimSpace(ip_list[i])}).Count()
 			if err != nil {
 				log.Printf("query error:%s\n", err)
 				this.done <- nil
 				break
 			}
 			if n > 0 {
-				log.Println(ip_list[i],"is gateway")
+				log.Println(ip_list[i], "is gateway")
 				gateway += ip_list[i] + ","
 			}
 		}
@@ -58,7 +58,7 @@ func (this *Mongo) handle(check_chan chan ipitem) {
 				erro := make(chan error)
 				go handle(strings.TrimSpace(req.hosts[l]), "del",
 					gateway[:len(gateway)-1], "", erro)
-				<- erro
+				<-erro
 
 			}
 		}

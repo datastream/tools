@@ -197,14 +197,16 @@ func sendip(name string, params map[string][]string) string {
 				}()
 			}
 		}
-		go func() {
-			ip_item := &ipitem{
-				ip:    params["ip"][0],
-				hosts: lines,
-			}
-			time.Sleep(time.Second * 10)
-			check_chan <- *ip_item
-		}()
+		if len(params["ip"]) > 0 {
+			go func() {
+				ip_item := &ipitem{
+					ip:    params["ip"][0],
+					hosts: lines,
+				}
+				time.Sleep(time.Second * 10)
+				check_chan <- *ip_item
+			}()
+		}
 		return rst
 	}
 	return "pushed\n"

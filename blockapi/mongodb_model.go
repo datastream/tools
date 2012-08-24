@@ -59,7 +59,6 @@ func (this *Mongo) handle(check_chan chan ipitem) {
 				go handle(strings.TrimSpace(req.hosts[l]), "del",
 					gateway[:len(gateway)-1], "", erro)
 				<-erro
-
 			}
 		}
 	}

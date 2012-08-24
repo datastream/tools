@@ -19,9 +19,8 @@ var (
 )
 const basename = "ddoshash"
 
-var num int
+var index int
 var hashname string
-
 var hashlist []string
 
 type ipset struct {
@@ -41,11 +40,11 @@ func main() {
 	req := make(chan *request)
 	done := make(chan int)
 	expire_chan := make(chan *ipset)
-	num = -1
-	create_set()
+	index = 0
+	hashname = basename + strconv.Itoa(index)
+	create_set(*blockset)
 	create_hash(hashname)
 	add_hashlist(hashname)
-	check_iphash()
 	for i := range hashlist {
 		log.Println(hashlist[i])
 	}
@@ -62,7 +61,6 @@ func run_command(req chan *request, expire_chan chan *ipset) {
 		if rq.action == "add" {
 			for i := range ip_list {
 				if len(ip_list[i]) < 7 {
-					log.Println("not correct ip:", ip_list[i])
 					continue
 				}
 				cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-A", hashname, ip_list[i])
@@ -70,15 +68,15 @@ func run_command(req chan *request, expire_chan chan *ipset) {
 				cmd.Stderr = &output
 				err := cmd.Run()
 				if err != nil {
-					log.Println("ipset ", rq.action, " error:", ip_list[i])
 					reg, e := regexp.Compile("set is full")
 					if e == nil && reg.MatchString(output.String()) {
 						log.Println("ipset ", hashname, " is full")
-						num += 1
-						hashname = basename + strconv.Itoa(num)
+						index ++
+						hashname = basename + strconv.Itoa(index)
 						create_hash(hashname)
 						add_hashlist(hashname)
 					} else {
+						//log.Println("add error:", ip_list[i])
 						continue
 					}
 				}
@@ -111,6 +109,7 @@ func check_iphash() {
 			line, _ := buf.ReadString('\n')
 			if line[:len(line)-1] == "Members:" {
 				i = true
+				continue
 			}
 			if line[:len(line)-1] == "Bindings:" {
 				break
@@ -122,23 +121,26 @@ func check_iphash() {
 	}
 }
 
-func create_set() {
-	_, err := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-L", *blockset).Output()
+func create_set(setname string) {
+	_, err := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-L", setname).Output()
 	if err == nil {
 		log.Println("setlist ", *blockset, " exist!")
 		return
 	}
-	cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-N", *blockset, "setlist")
+	cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-N", setname, "setlist")
 	if err = cmd.Run(); err != nil {
 		log.Println("ipset create setlist failed:", err)
 	}
 }
 
 func create_hash(name string) {
+	check_iphash()
 	full := false
 	if len(hashlist) >= 8 {
-		hashname = hashlist[0]
-		num = -1
+		if index > 7 {
+			index = 0
+		}
+		hashname = hashlist[index]
 		name = hashname
 		full = true
 		log.Println("setlist full, reuse ", hashname)
@@ -259,6 +261,6 @@ func handle(fd net.Conn, req chan *request) {
 			fd.Write([]byte("all ip cleaned\n"))
 		}
 		hashname = basename
-		num = -1
+		index = 0
 	}
 }

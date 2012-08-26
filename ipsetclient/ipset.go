@@ -153,7 +153,7 @@ func run_command(req chan *Request, expire_chan chan *ipset, sleep_chan chan int
 			indexlock.Unlock()
 		}
 		if *rq.iprequest.RequestType == REQUEST_TYPE_STOP {
-			go func() {sleep_chan <- *rq.iprequest.Timeout}()
+			go func() { sleep_chan <- *rq.iprequest.Timeout }()
 		}
 	}
 }
@@ -176,7 +176,7 @@ func run_server(req chan *Request, done chan int) {
 
 type Request struct {
 	iprequest *IPRequest
-	rsp chan *Response
+	rsp       chan *Response
 }
 
 func handle(fd net.Conn, req chan *Request) {
@@ -193,9 +193,9 @@ func handle(fd net.Conn, req chan *Request) {
 			log.Println("read socket data failed", err)
 			break
 		}
-		request := &Request {
+		request := &Request{
 			iprequest: new(IPRequest),
-			rsp: make(chan *Response),
+			rsp:       make(chan *Response),
 		}
 		proto.Unmarshal(data_record, request.iprequest)
 		req <- request

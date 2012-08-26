@@ -3,8 +3,8 @@ package main
 import (
 	"bytes"
 	"log"
-	"time"
 	"os/exec"
+	"time"
 )
 
 func check_iphash() {
@@ -79,7 +79,8 @@ func add_hashlist(hash string) {
 func expire_ip(expire_chan chan *ipset, sleep_chan chan int32) {
 	for {
 		select {
-		case item := <- expire_chan: {
+		case item := <-expire_chan:
+			{
 				cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-D", item.set, item.ip)
 				err := cmd.Run()
 				if err != nil {
@@ -88,8 +89,9 @@ func expire_ip(expire_chan chan *ipset, sleep_chan chan int32) {
 					log.Println("auto expire:", "/usr/bin/sudo", "/usr/sbin/ipset", "-D", item.set, item.ip)
 				}
 			}
-		case i := <- sleep_chan: {
-				time.Sleep(time.Second* time.Duration(i))
+		case i := <-sleep_chan:
+			{
+				time.Sleep(time.Second * time.Duration(i))
 				log.Println("stop auto expire")
 			}
 		}

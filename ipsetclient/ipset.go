@@ -51,6 +51,7 @@ func main() {
 		log.Println(hashlist[i])
 	}
 	go run_command(req, expire_chan, sleep_chan)
+	go read_speed(sleep_chan)
 	go expire_ip(expire_chan, sleep_chan)
 	go run_server(req, done)
 	<-done

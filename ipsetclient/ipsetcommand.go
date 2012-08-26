@@ -4,7 +4,11 @@ import (
 	"bytes"
 	"log"
 	"os/exec"
+	"os"
 	"time"
+	"strings"
+	"bufio"
+	"strconv"
 )
 
 func check_iphash() {
@@ -92,6 +96,30 @@ func expire_ip(expire_chan chan *ipset, sleep_chan chan int32) {
 				time.Sleep(time.Second * time.Duration(i))
 				log.Println("stop auto expire")
 			}
+		}
+	}
+}
+
+func read_speed(sleep_chan chan int32) {
+	fd, err := os.Open("/sys/class/net/eth0/statistics/rx_bytes")
+	if err != nil {
+		log.Println("fail to read /sys/class/net/eth0/statistics/rx_bytes")
+		return
+	}
+	reader := bufio.NewReader(fd)
+	var line string
+	for {
+		fd.Seek(0, 0)
+		line, _ = reader.ReadString('\n')
+		stat1, _ := strconv.ParseUint(strings.TrimSpace(line),10, 64)
+		time.Sleep(time.Second * 2)
+		fd.Seek(0, 0)
+		line, _ = reader.ReadString('\n')
+		stat2, _ := strconv.ParseUint(strings.TrimSpace(line),10, 64)
+		time.Sleep(time.Second * 2)
+		speed := (stat2-stat1)/2/1024/1024
+		if speed > 20 {
+			sleep_chan <- int32(speed) * 6
 		}
 	}
 }

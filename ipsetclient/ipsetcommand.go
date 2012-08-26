@@ -1,14 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"log"
-	"os/exec"
 	"os"
-	"time"
-	"strings"
-	"bufio"
+	"os/exec"
 	"strconv"
+	"strings"
+	"time"
 )
 
 func check_iphash() {
@@ -86,7 +86,7 @@ func expire_ip(expire_chan chan *ipset, sleep_chan chan int32) {
 				cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-D", item.set, item.ip)
 				err := cmd.Run()
 				if err != nil {
-					log.Println(item.set, ": ", item.ip," auto delete error", err)
+					log.Println(item.set, ": ", item.ip, " auto delete error", err)
 				} else {
 					log.Println("auto expire:", item.set, item.ip)
 				}
@@ -111,14 +111,14 @@ func read_speed(speed_chan chan uint64, sleep_chan chan int32) {
 	for {
 		fd.Seek(0, 0)
 		line, _ = reader.ReadString('\n')
-		stat1, _ := strconv.ParseUint(strings.TrimSpace(line),10, 64)
+		stat1, _ := strconv.ParseUint(strings.TrimSpace(line), 10, 64)
 		time.Sleep(time.Second * 5)
 		fd.Seek(0, 0)
 		line, _ = reader.ReadString('\n')
-		stat2, _ := strconv.ParseUint(strings.TrimSpace(line),10, 64)
-		speed := (stat2-stat1)/5/1024/1024
+		stat2, _ := strconv.ParseUint(strings.TrimSpace(line), 10, 64)
+		speed := (stat2 - stat1) / 5 / 1024 / 1024
 		speed_chan <- speed
-		if speed > 40 {
+		if int(speed) > *hardlimit {
 			sleep_chan <- int32(speed) * 6
 		}
 		time.Sleep(time.Second * 5)

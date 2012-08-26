@@ -15,8 +15,10 @@ import (
 )
 
 var (
-	port     = flag.String("port", "1234", "access port")
-	blockset = flag.String("blockset", "ddos", "ddos ipset")
+	port      = flag.String("port", "1234", "access port")
+	blockset  = flag.String("blockset", "ddos", "ddos ipset")
+	softlimit = flag.Int("softlimit", 14, "softlimit(MB)")
+	hardlimit = flag.Int("hardlimit", 30, "hardlimit(MB)")
 )
 
 const basename = "ddoshash"
@@ -54,7 +56,7 @@ func main() {
 		log.Println(hashlist[i])
 	}
 	go func() {
-		currentspeed = <- speed_chan
+		currentspeed = <-speed_chan
 	}()
 	go run_command(req, expire_chan, sleep_chan)
 	go read_speed(speed_chan, sleep_chan)
@@ -75,7 +77,7 @@ func run_command(req chan *Request, expire_chan chan *ipset, sleep_chan chan int
 					if len(rq.iprequest.Ipaddresses[i]) < 7 {
 						continue
 					}
-					if currentspeed < 14 {
+					if int(currentspeed) < *softlimit {
 						continue
 					}
 					cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-A", hashname, string(rq.iprequest.Ipaddresses[i]))

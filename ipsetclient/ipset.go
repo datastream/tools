@@ -27,6 +27,8 @@ var index int
 var hashname string
 var hashlist []string
 
+var currentspeed uint64
+
 type ipset struct {
 	ip    string
 	set   string
@@ -41,6 +43,7 @@ func main() {
 	done := make(chan int)
 	expire_chan := make(chan *ipset)
 	sleep_chan := make(chan int32)
+	speed_chan := make(chan uint64)
 	index = 0
 	hashname = basename + strconv.Itoa(index)
 
@@ -50,8 +53,11 @@ func main() {
 	for i := range hashlist {
 		log.Println(hashlist[i])
 	}
+	go func() {
+		currentspeed = <- speed_chan
+	}()
 	go run_command(req, expire_chan, sleep_chan)
-	go read_speed(sleep_chan)
+	go read_speed(speed_chan, sleep_chan)
 	go expire_ip(expire_chan, sleep_chan)
 	go run_server(req, done)
 	<-done
@@ -67,6 +73,9 @@ func run_command(req chan *Request, expire_chan chan *ipset, sleep_chan chan int
 			go func() {
 				for i := range rq.iprequest.Ipaddresses {
 					if len(rq.iprequest.Ipaddresses[i]) < 7 {
+						continue
+					}
+					if currentspeed < 14 {
 						continue
 					}
 					cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-A", hashname, string(rq.iprequest.Ipaddresses[i]))

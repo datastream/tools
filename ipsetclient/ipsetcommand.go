@@ -100,7 +100,7 @@ func expire_ip(expire_chan chan *ipset, sleep_chan chan int32) {
 	}
 }
 
-func read_speed(sleep_chan chan int32) {
+func read_speed(speed_chan chan uint64, sleep_chan chan int32) {
 	fd, err := os.Open("/sys/class/net/eth0/statistics/rx_bytes")
 	if err != nil {
 		log.Println("fail to read /sys/class/net/eth0/statistics/rx_bytes")
@@ -112,14 +112,15 @@ func read_speed(sleep_chan chan int32) {
 		fd.Seek(0, 0)
 		line, _ = reader.ReadString('\n')
 		stat1, _ := strconv.ParseUint(strings.TrimSpace(line),10, 64)
-		time.Sleep(time.Second * 2)
+		time.Sleep(time.Second * 5)
 		fd.Seek(0, 0)
 		line, _ = reader.ReadString('\n')
 		stat2, _ := strconv.ParseUint(strings.TrimSpace(line),10, 64)
-		time.Sleep(time.Second * 2)
-		speed := (stat2-stat1)/2/1024/1024
-		if speed > 20 {
+		speed := (stat2-stat1)/5/1024/1024
+		speed_chan <- speed
+		if speed > 40 {
 			sleep_chan <- int32(speed) * 6
 		}
+		time.Sleep(time.Second * 5)
 	}
 }

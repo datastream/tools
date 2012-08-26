@@ -82,9 +82,9 @@ func expire_ip(expire_chan chan *ipset, sleep_chan chan int32) {
 				cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-D", item.set, item.ip)
 				err := cmd.Run()
 				if err != nil {
-					log.Println("ipset delete error", err)
+					log.Println(item.set, ": ", item.ip," auto delete error", err)
 				} else {
-					log.Println("auto expire:", "/usr/bin/sudo", "/usr/sbin/ipset", "-D", item.set, item.ip)
+					log.Println("auto expire:", item.set, item.ip)
 				}
 			}
 		case i := <-sleep_chan:

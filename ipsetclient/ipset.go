@@ -41,10 +41,9 @@ func main() {
 	done := make(chan int)
 	expire_chan := make(chan *ipset)
 	sleep_chan := make(chan int32)
-	indexlock.Lock()
 	index = 0
-	indexlock.Unlock()
 	hashname = basename + strconv.Itoa(index)
+
 	create_set(*blockset)
 	create_hash(hashname)
 	add_hashlist(hashname)
@@ -79,10 +78,9 @@ func run_command(req chan *Request, expire_chan chan *ipset, sleep_chan chan int
 							log.Println("ipset ", hashname, " is full")
 							indexlock.Lock()
 							index++
-							indexlock.Unlock()
 							hashname = basename + strconv.Itoa(index)
-
 							create_hash(hashname)
+							indexlock.Unlock()
 							add_hashlist(hashname)
 						} else {
 							continue

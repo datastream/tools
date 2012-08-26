@@ -44,9 +44,7 @@ func create_hash(name string) {
 	full := false
 	if len(hashlist) >= 8 {
 		if index > 7 {
-			indexlock.Lock()
 			index = 0
-			indexlock.Unlock()
 		}
 		hashname = hashlist[index]
 		name = hashname

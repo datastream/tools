@@ -1,0 +1,27 @@
+package main;
+
+enum REQUEST_TYPE {
+  CREATE = 1;
+  READ = 2;
+  UPDATE = 3;
+  DELTE = 4;
+  CLEAR = 5;
+  STOP = 6;
+}
+enum STATES_CODE {
+  OK = 1;
+  BUSY = 2;
+  ERR = 3;
+}
+message IPRequest
+{
+  optional REQUEST_TYPE request_type = 1;
+  repeated bytes ipaddresses = 2;
+  optional int32 timeout = 3;
+  optional int32 rate = 4;
+}
+message Response
+{
+  optional STATES_CODE stat_code = 1;
+  optional bytes msg = 2;
+}

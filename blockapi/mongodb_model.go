@@ -31,11 +31,11 @@ func NewMongo(mongouri, dbname, collection, user, password string) (m *Mongo, er
 	m.collection = db.C(collection)
 	return
 }
-func (this *Mongo) handle(check_chan chan ipitem) {
+func (this *Mongo) handle(check_chan chan WhiteListRequest) {
 	for {
 		req := <-check_chan
 		var err error
-		var gateway string
+		var gateway [][]byte
 		ip_list := strings.Split(req.ip, ",")
 		for i := range ip_list {
 			if len(ip_list[i]) < 7 {
@@ -50,15 +50,15 @@ func (this *Mongo) handle(check_chan chan ipitem) {
 			}
 			if n > 0 {
 				log.Println(ip_list[i], "is gateway")
-				gateway += ip_list[i] + ","
+				gateway = append(gateway, []byte(ip_list[i]))
 			}
 		}
-		for l := range req.hosts {
-			if len(gateway) > 1 {
-				erro := make(chan error)
-				go handle(strings.TrimSpace(req.hosts[l]), "del",
-					gateway[:len(gateway)-1], "", erro)
-				<-erro
+		if len(gateway) > 1 {
+			rq := &Request{}
+			rq.iprequest.RequestType = REQUEST_TYPE_DELTE.Enum()
+			rq.iprequest.Ipaddresses = gateway
+			for l := range req.hosts {
+				go sendtohost(req.hosts[l], rq)
 			}
 		}
 	}

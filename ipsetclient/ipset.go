@@ -195,12 +195,12 @@ func handle(fd net.Conn, req chan *Request) {
 	for {
 		buf := make([]byte, 4)
 		if _, err := reader.Read(buf); err != nil {
-			return
+			break
 		}
 		data_length := int(decodefixed32(buf))
 		data_record := make([]byte, data_length)
 		if size, err := reader.Read(data_record); err != nil || size != data_length {
-			log.Println("read socket data failed", err)
+			log.Println("read socket data failed", err, "read size:", size, "data_length:", data_length)
 			break
 		}
 		request := &Request{

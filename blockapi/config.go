@@ -2,9 +2,9 @@ package main
 
 import (
 	"bufio"
-	"os"
 	"io"
 	"log"
+	"os"
 	"strings"
 )
 

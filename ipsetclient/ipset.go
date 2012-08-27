@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"code.google.com/p/goprotobuf/proto"
 	"flag"
+	"io"
 	"log"
 	"net"
 	"os/exec"
@@ -192,36 +193,41 @@ type Request struct {
 func handle(fd net.Conn, req chan *Request) {
 	defer fd.Close()
 	reader := bufio.NewReaderSize(fd, 1024*20)
+	buf := make([]byte, 4)
+	if _, err := reader.Read(buf); err != nil {
+		return
+	}
+	data_length := int(decodefixed32(buf))
+	data_record := make([]byte, data_length)
+	var index = 0
 	for {
-		buf := make([]byte, 4)
-		if _, err := reader.Read(buf); err != nil {
-			break
-		}
-		data_length := int(decodefixed32(buf))
-		data_record := make([]byte, data_length)
-		if size, err := reader.Read(data_record); err != nil {
+		var size int
+		var err error
+		if size, err = reader.Read(data_record[index:]); err != nil {
+			if err == io.EOF {
+				break
+			}
 			log.Println("read socket data failed", err, "read size:", size, "data_length:", data_length)
 			break
-		} else if size != data_length {
-			if n, err := reader.Read(data_record[size:]); err != nil || n != (data_length-size) {
-				log.Println("retry read socket data failed", err, "read size:", size+n, "data_length:", data_length)
-				break
-			}
 		}
-		request := &Request{
-			iprequest: new(IPRequest),
-			rsp:       make(chan *Response),
+		index += size
+		if index == data_length {
+			break
 		}
-		proto.Unmarshal(data_record, request.iprequest)
-		req <- request
-		if *request.iprequest.RequestType == REQUEST_TYPE_READ {
-			response := <-request.rsp
-			data, err := proto.Marshal(response)
-			fd.Write(encodefixed32(uint64(len(data))))
-			if _, err = fd.Write(data); err != nil {
-				log.Println("write socket data error", err)
-				break
-			}
+	}
+	request := &Request{
+		iprequest: new(IPRequest),
+		rsp:       make(chan *Response),
+	}
+	proto.Unmarshal(data_record, request.iprequest)
+	req <- request
+	if *request.iprequest.RequestType == REQUEST_TYPE_READ {
+		response := <-request.rsp
+		data, err := proto.Marshal(response)
+		fd.Write(encodefixed32(uint64(len(data))))
+		if _, err = fd.Write(data); err != nil {
+			log.Println("write socket data error", err)
+			return
 		}
 	}
 }

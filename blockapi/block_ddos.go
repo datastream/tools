@@ -30,7 +30,7 @@ type WhiteListRequest struct {
 
 type Request struct {
 	iprequest *IPRequest
-	rsp chan *Response
+	rsp       chan *Response
 }
 
 var check_chan chan WhiteListRequest

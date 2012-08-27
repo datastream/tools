@@ -2,19 +2,21 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
+	"io"
 	"net"
 	"os/exec"
-	"flag"
-	"io"
 )
 
 var (
-	filename          = flag.String("file", "/var/log/apache/access.log", "filenema")
+	filename = flag.String("file", "/var/log/apache/access.log", "filenema")
 )
+
 func init() {
 	flag.Parse()
 }
+
 var done chan int
 
 func main() {
@@ -31,7 +33,7 @@ func read_log(logchan chan []byte) {
 		fmt.Println("Read Pipe error", err)
 	}
 	f := bufio.NewReaderSize(stdout, 10240)
-	line := make([]byte,1024)
+	line := make([]byte, 1024)
 	err = cmd.Start()
 	if err != nil {
 		fmt.Println("run error", err)

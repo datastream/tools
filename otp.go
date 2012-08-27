@@ -1,25 +1,25 @@
 package main
+
 import (
 	"crypto/hmac"
 	"crypto/sha1"
 	"encoding/base32"
 	"log"
-	"time"
 	"os"
+	"time"
 )
 
 const (
-	SHA1_DIGEST_LENGTH = 20
-	BITS_PER_BASE32_CHAR = 5
-	SCRATCHCODES = 5
-	SCRATCHCODE_LENGTH = 8
-	BYTES_PER_SCRATCHCODE = 4
-	SECRET_BITS = 8
-	VERIFICATION_CODE_MODULUS = 1000*1000
-
+	SHA1_DIGEST_LENGTH        = 20
+	BITS_PER_BASE32_CHAR      = 5
+	SCRATCHCODES              = 5
+	SCRATCHCODE_LENGTH        = 8
+	BYTES_PER_SCRATCHCODE     = 4
+	SECRET_BITS               = 8
+	VERIFICATION_CODE_MODULUS = 1000 * 1000
 )
 
-func generatecode() string  {
+func generatecode() string {
 	return base32.StdEncoding.EncodeToString(get_random())
 }
 
@@ -30,7 +30,7 @@ func get_random() []byte {
 		return nil
 	}
 	buf := make([]byte, 10)
-	_,_ = fd.Read(buf)
+	_, _ = fd.Read(buf)
 	return buf
 }
 
@@ -38,7 +38,7 @@ func int_to_bytes(num int64) []byte {
 	var val [8]byte
 	i := 8
 	for {
-		i --
+		i--
 		if i < 0 {
 			break
 		}
@@ -53,7 +53,7 @@ func compute_code(secret []byte, value int64) uint32 {
 	key := make([]byte, base32.StdEncoding.DecodedLen(len(secret)))
 	_, er := base32.StdEncoding.Decode(key, secret)
 	if er != nil {
-		log.Println("decode 32:",er)
+		log.Println("decode 32:", er)
 	}
 
 	h := hmac.New(sha1.New, key)
@@ -65,9 +65,9 @@ func compute_code(secret []byte, value int64) uint32 {
 
 	offset := hash[len(hash)-1] & 0xF
 	truncatedHash := uint32(0)
-	for i := 0; i < 4; i ++ {
+	for i := 0; i < 4; i++ {
 		truncatedHash <<= 8
-		truncatedHash  |= uint32(hash[int(offset) + i])
+		truncatedHash |= uint32(hash[int(offset)+i])
 	}
 
 	truncatedHash &= 0x7FFFFFFF
@@ -76,7 +76,7 @@ func compute_code(secret []byte, value int64) uint32 {
 }
 
 func get_timestamp() int64 {
-	return time.Now().Unix()/30
+	return time.Now().Unix() / 30
 }
 
 func main() {

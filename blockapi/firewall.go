@@ -1,12 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"code.google.com/p/goprotobuf/proto"
+	"io"
 	"log"
 	"net"
-	"strings"
 	"strconv"
-	"bufio"
+	"strings"
 	"time"
 )
 
@@ -18,37 +19,44 @@ func gen_protov1(configname string, params map[string][]string) string {
 		return "null action\n"
 	}
 	var rst string
-	req := &Request {
+	req := &Request{
 		iprequest: new(IPRequest),
-		rsp: make(chan *Response),
+		rsp:       make(chan *Response),
 	}
 	switch strings.TrimSpace(params["action_type"][0]) {
-	case "add": {
+	case "add":
+		{
 			req.iprequest.RequestType = REQUEST_TYPE_CREATE.Enum()
 			req.iprequest.Ipaddresses = get_ipaddresses(params["ip"])
 			req.iprequest.Timeout = proto.Int32(get_timeout(params["timeout"]))
 		}
-	case "del": {
+	case "del":
+		{
 			req.iprequest.RequestType = REQUEST_TYPE_DELTE.Enum()
 			req.iprequest.Ipaddresses = get_ipaddresses(params["ip"])
 		}
-	case "clear": {
+	case "clear":
+		{
 			req.iprequest.RequestType = REQUEST_TYPE_CLEAR.Enum()
 		}
-	case "list": {
+	case "list":
+		{
 			req.iprequest.RequestType = REQUEST_TYPE_READ.Enum()
 		}
 		// update not work, client donot support now
-	case "update": {
+	case "update":
+		{
 			req.iprequest.RequestType = REQUEST_TYPE_UPDATE.Enum()
 			req.iprequest.Ipaddresses = get_ipaddresses(params["ip"])
 			req.iprequest.Timeout = proto.Int32(get_timeout(params["timeout"]))
 		}
-	case "stop": {
+	case "stop":
+		{
 			req.iprequest.RequestType = REQUEST_TYPE_STOP.Enum()
 			req.iprequest.Timeout = proto.Int32(get_timeout(params["timeout"]))
 		}
-	default: {
+	default:
+		{
 			return "wrong action\n"
 		}
 	}
@@ -67,9 +75,9 @@ func gen_protov1(configname string, params map[string][]string) string {
 	for i := range hosts {
 		go sendtohost(hosts[i], req)
 		if *req.iprequest.RequestType == REQUEST_TYPE_READ {
-			rp := <- req.rsp
+			rp := <-req.rsp
 			if rp != nil {
-				rst += hosts[i] + "\n" + string(rp.Msg) +"\n\n"
+				rst += hosts[i] + "\n" + string(rp.Msg) + "\n\n"
 			}
 		}
 	}
@@ -93,7 +101,7 @@ func get_timeout(t []string) int32 {
 	if len(t) > 0 {
 		to, _ = strconv.Atoi(t[0])
 	} else {
-		to = 8*3600
+		to = 8 * 3600
 	}
 	return int32(to)
 }
@@ -123,29 +131,43 @@ func sendtohost(host string, req *Request) {
 		}
 		data_length := int(decodefixed32(buf))
 		data_record := make([]byte, data_length)
-		if size, err := reader.Read(data_record); err != nil || size != data_length {
-			log.Println("read socket data failed", err)
-			req.rsp <- nil
-			return
+
+		var index = 0
+		for {
+			var size int
+			var err error
+			if size, err = reader.Read(data_record[index:]); err != nil {
+				if err == io.EOF {
+					break
+				}
+				log.Println("read socket data failed", err, "read size:", size, "data_length:", data_length)
+				req.rsp <- nil
+				return
+			}
+			index += size
+			if index == data_length {
+				break
+			}
 		}
+
 		rsp := &Response{}
 		proto.Unmarshal(data_record, rsp)
 		req.rsp <- rsp
 	}
 }
 func encodefixed32(x uint64) []byte {
-        var p []byte
-        p = append(p,
-                uint8(x),
-                uint8(x>>8),
-                uint8(x>>16),
-                uint8(x>>24))
-        return p
+	var p []byte
+	p = append(p,
+		uint8(x),
+		uint8(x>>8),
+		uint8(x>>16),
+		uint8(x>>24))
+	return p
 }
-func decodefixed32(num []byte)(x uint64) {
-        x = uint64(num[0])
-        x |= uint64(num[1]) << 8
-        x |= uint64(num[2]) << 16
-        x |= uint64(num[3]) << 24
-        return
+func decodefixed32(num []byte) (x uint64) {
+	x = uint64(num[0])
+	x |= uint64(num[1]) << 8
+	x |= uint64(num[2]) << 16
+	x |= uint64(num[3]) << 24
+	return
 }

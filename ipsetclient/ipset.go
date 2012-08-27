@@ -191,7 +191,7 @@ type Request struct {
 
 func handle(fd net.Conn, req chan *Request) {
 	defer fd.Close()
-	reader := bufio.NewReader(fd)
+	reader := bufio.NewReaderSize(fd, 1024*20)
 	for {
 		buf := make([]byte, 4)
 		if _, err := reader.Read(buf); err != nil {
@@ -199,9 +199,14 @@ func handle(fd net.Conn, req chan *Request) {
 		}
 		data_length := int(decodefixed32(buf))
 		data_record := make([]byte, data_length)
-		if size, err := reader.Read(data_record); err != nil || size != data_length {
+		if size, err := reader.Read(data_record); err != nil {
 			log.Println("read socket data failed", err, "read size:", size, "data_length:", data_length)
 			break
+		} else if size != data_length {
+			if n, err := reader.Read(data_record[size:]); err != nil || n != (data_length-size) {
+				log.Println("retry read socket data failed", err, "read size:", size+n, "data_length:", data_length)
+				break
+			}
 		}
 		request := &Request{
 			iprequest: new(IPRequest),

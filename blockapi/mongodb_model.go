@@ -54,7 +54,7 @@ func (this *Mongo) handle(check_chan chan WhiteListRequest) {
 			}
 		}
 		if len(gateway) > 1 {
-			rq := &Request{}
+			rq := &FirewallRequest{}
 			rq.iprequest.RequestType = REQUEST_TYPE_DELTE.Enum()
 			rq.iprequest.Ipaddresses = gateway
 			for l := range req.hosts {

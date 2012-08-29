@@ -2,9 +2,8 @@ package main
 
 import (
 	"flag"
-	"github.com/garyburd/twister/server"
-	"github.com/garyburd/twister/web"
-	"io"
+	"log"
+	"net/http"
 	"net/url"
 	"strings"
 )
@@ -28,55 +27,66 @@ type WhiteListRequest struct {
 	hosts []string
 }
 
-type Request struct {
+type FirewallRequest struct {
 	iprequest *IPRequest
 	rsp       chan *Response
 }
 
 var check_chan chan WhiteListRequest
 
-func NginxApi(req *web.Request) {
+func NginxApi(w http.ResponseWriter, req *http.Request) {
 	pat := strings.Split(req.URL.Path, "/")
-	if pat[1] != "lvs" {
-		var params map[string][]string
-		if req.Method == "POST" {
-			params = req.Param
+	if req.Method != "POST" {
+		if pat[2] == "ip" {
+			req.Form, _ = url.ParseQuery("show_type=ip&show_list=all")
 		} else {
-			if pat[2] == "ip" {
-				params, _ = url.ParseQuery("show_type=ip&show_list=all")
-			} else {
-				params, _ = url.ParseQuery("show_type=variable&show_list=all")
-			}
+			req.Form, _ = url.ParseQuery("show_type=variable&show_list=all")
 		}
-		rst := genrequest("/limit_interface_"+pat[2], pat[1], params)
-		w := req.Respond(web.StatusOK, web.HeaderContentType, "text/plain; charset=\"utf-8\"")
-		io.WriteString(w, rst)
-	} else {
-		FirewallApi(req)
 	}
+	rst := genrequest("/limit_interface_"+pat[2], pat[1], req.Form)
+	w.Header().Set("Content-Type", "text/plain; charset=\"utf-8\"")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(rst))
 }
 
-func FirewallApi(req *web.Request) {
-	w := req.Respond(web.StatusOK, web.HeaderContentType, "text/plain; charset=\"utf-8\"")
+func FirewallApi(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=\"utf-8\"")
 	parts := strings.Split(req.URL.Path, "/")
 	if req.Method == "GET" {
-		param, _ := url.ParseQuery("action_type=list")
-		io.WriteString(w, gen_protov1(parts[2], param))
-	} else {
-		if len(parts) > 2 {
-			io.WriteString(w, gen_protov1(parts[2], req.Param))
-		} else {
-			io.WriteString(w, "error")
-		}
+		req.Form, _ = url.ParseQuery("action_type=list")
 	}
-	return
+	if len(parts) > 2 {
+		w.WriteHeader(http.StatusOK)
+	} else {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("error"))
+		return
+	}
+	w.Write([]byte(gen_protov1(parts[2], req)))
 }
 
+func ReadmeApi(w http.ResponseWriter, req *http.Request) {
+	parts := strings.Split(req.URL.Path, "/")
+	req.ParseForm()
+	if len(parts) > 0 {
+		if parts[1] == "lvs" {
+			FirewallApi(w, req)
+		} else {
+			NginxApi(w, req)
+		}
+	} else {
+		w.Header().Set("Content-Type", "text/plain; charset=\"utf-8\"")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("hello world!"))
+	}
+}
 func main() {
 	flag.Parse()
 	check_chan = make(chan WhiteListRequest)
 	go check_whitelist(check_chan)
-	h := web.NewRouter().
-		Register("/<:.*>", "*", web.FormHandler(8148, false, web.HandlerFunc(NginxApi)))
-	server.Run(":"+*port, h)
+	http.HandleFunc("/", ReadmeApi)
+	err := http.ListenAndServe(":"+*port, nil)
+	if err != nil {
+		log.Println(err)
+	}
 }

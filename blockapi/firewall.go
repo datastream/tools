@@ -6,34 +6,33 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
 )
 
-func gen_protov1(configname string, params map[string][]string) string {
+func gen_protov1(configname string, rq *http.Request) string {
 	hosts := read_config(configname)
-
-	if len(params["action_type"]) == 0 {
-		log.Println(params["action_type"])
+	if len(rq.FormValue("action_type")) == 0 {
 		return "null action\n"
 	}
 	var rst string
-	req := &Request{
+	req := &FirewallRequest{
 		iprequest: new(IPRequest),
 		rsp:       make(chan *Response),
 	}
-	switch strings.TrimSpace(params["action_type"][0]) {
+	switch strings.TrimSpace(rq.FormValue("action_type")) {
 	case "add":
 		{
 			req.iprequest.RequestType = REQUEST_TYPE_CREATE.Enum()
-			req.iprequest.Ipaddresses = get_ipaddresses(params["ip"])
-			req.iprequest.Timeout = proto.Int32(get_timeout(params["timeout"]))
+			req.iprequest.Ipaddresses = get_ipaddresses(rq.FormValue("ip"))
+			req.iprequest.Timeout = proto.Int32(get_timeout(rq.FormValue("timeout")))
 		}
 	case "del":
 		{
 			req.iprequest.RequestType = REQUEST_TYPE_DELTE.Enum()
-			req.iprequest.Ipaddresses = get_ipaddresses(params["ip"])
+			req.iprequest.Ipaddresses = get_ipaddresses(rq.FormValue("ip"))
 		}
 	case "clear":
 		{
@@ -47,13 +46,13 @@ func gen_protov1(configname string, params map[string][]string) string {
 	case "update":
 		{
 			req.iprequest.RequestType = REQUEST_TYPE_UPDATE.Enum()
-			req.iprequest.Ipaddresses = get_ipaddresses(params["ip"])
-			req.iprequest.Timeout = proto.Int32(get_timeout(params["timeout"]))
+			req.iprequest.Ipaddresses = get_ipaddresses(rq.FormValue("ip"))
+			req.iprequest.Timeout = proto.Int32(get_timeout(rq.FormValue("timeout")))
 		}
 	case "stop":
 		{
 			req.iprequest.RequestType = REQUEST_TYPE_STOP.Enum()
-			req.iprequest.Timeout = proto.Int32(get_timeout(params["timeout"]))
+			req.iprequest.Timeout = proto.Int32(get_timeout(rq.FormValue("timeout")))
 		}
 	default:
 		{
@@ -84,29 +83,26 @@ func gen_protov1(configname string, params map[string][]string) string {
 	return rst
 }
 
-func get_ipaddresses(ips []string) [][]byte {
-	var ip_list []string
-	for i := range ips {
-		ip_list = append(ip_list, strings.Split(ips[i], ",")...)
-	}
+func get_ipaddresses(ips string) [][]byte {
 	var rst [][]byte
+	ip_list := strings.Split(ips, ",")
 	for i := range ip_list {
-		rst = append(rst, []byte(ip_list[i]))
+		if len(ip_list[i]) > 3 {
+			rst = append(rst, []byte(ip_list[i]))
+		}
 	}
 	return rst
 }
 
-func get_timeout(t []string) int32 {
-	var to int
-	if len(t) > 0 {
-		to, _ = strconv.Atoi(t[0])
-	} else {
+func get_timeout(t string) int32 {
+	to, err := strconv.Atoi(t)
+	if err != nil {
 		to = 8 * 3600
 	}
 	return int32(to)
 }
 
-func sendtohost(host string, req *Request) {
+func sendtohost(host string, req *FirewallRequest) {
 	fd, e := net.Dial("tcp", host)
 	if e != nil {
 		log.Println("dial error:", host, " ", e)

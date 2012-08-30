@@ -22,7 +22,7 @@ func NewMetric(s string) *Metric {
 	splitstring := strings.Split(s, " ")
 	splitname := strings.Split(splitstring[0], ".")
 	if len(splitname) < 3 {
-		log.Println("metrics not match",s)
+		log.Println("metrics not match", s)
 		return nil
 	}
 	this.Hostname = splitname[len(splitname)-1]

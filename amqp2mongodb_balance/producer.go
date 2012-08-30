@@ -4,45 +4,70 @@ import (
 	"labix.org/v2/mgo"
 	"log"
 	"strings"
+	"time"
 )
 
 type Producer struct {
 	session    *mgo.Session
-	collection *mgo.Collection
+	db         *mgo.Database
+	mongouri   string
+	dbname     string
+	collection string
+	user       string
+	password   string
 	done       chan error
 }
 
-func NewProducer(mongouri, dbname, collection, user, password string) (m *Producer, err error) {
-	m = new(Producer)
-	m.session, err = mgo.Dial(mongouri)
-	if err != nil {
-		m.session = nil
-		return
+func NewProducer(mongouri, dbname, collection, user, password string) *Producer {
+	this := &Producer{
+		mongouri:   mongouri,
+		dbname:     dbname,
+		collection: collection,
+		user:       user,
+		password:   password,
 	}
-	db := m.session.DB(dbname)
-	err = db.Login(user, password)
-	if err != nil {
-		m.session = nil
-		return
-	}
-	m.collection = db.C(collection)
-	return
+	return this
 }
 
-func (this *Producer) handle(work *Work) {
+func (this *Producer) connect_mongodb() {
+	for {
+		session, err := mgo.Dial(this.mongouri)
+		if err != nil {
+			time.Sleep(time.Second * 2)
+			continue
+		}
+		this.db = session.DB(this.dbname)
+		if len(this.user) > 0 {
+			err = this.db.Login(this.user, this.password)
+			if err != nil {
+				time.Sleep(time.Second * 2)
+				continue
+			}
+		}
+		break
+	}
+}
+func (this *Producer) insert_record(message_chan chan *Message) {
+	this.connect_mongodb()
+	go this.handle(message_chan)
+	for {
+		<-this.done
+		this.connect_mongodb()
+		go this.handle(message_chan)
+	}
+}
+
+func (this *Producer) handle(message_chan chan *Message) {
 	for {
 		var err error
-		msg := <-work.message
+		msg := <-message_chan
 		metrics := strings.Split(strings.TrimSpace(msg.content), "\n")
 		for i := range metrics {
 			record := NewMetric(metrics[i])
 			if record != nil {
-				err = this.collection.Insert(record)
+				err = this.db.C(this.dbname).Insert(record)
 				if err != nil {
-					log.Println("mongodb insert failed")
-					this.session.Close()
-					this.session = nil
-					work.producer <- this
+					log.Println("mongodb insert failed", err)
 					this.done <- err
 					break
 				}
@@ -52,7 +77,7 @@ func (this *Producer) handle(work *Work) {
 		}
 		if err != nil {
 			go func() {
-				work.message <- msg
+				message_chan <- msg
 			}()
 			break
 		}

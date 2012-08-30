@@ -3,98 +3,120 @@ package main
 import (
 	"github.com/streadway/amqp"
 	"log"
+	"time"
 )
 
 type Consumer struct {
-	conn       *amqp.Connection
-	channel    *amqp.Channel
-	tag        string
-	deliveries <-chan amqp.Delivery
-	done       chan error
+	conn         *amqp.Connection
+	channel      *amqp.Channel
+	tag          string
+	deliveries   <-chan amqp.Delivery
+	amqpURI      string
+	exchange     string
+	exchangeType string
+	queue        string
+	key          string
+	done         chan error
 }
 
-func NewConsumer(amqpURI, exchange, exchangeType, queue, key, ctag string) (*Consumer, error) {
-	c := &Consumer{
-		conn:    nil,
-		channel: nil,
-		tag:     ctag,
-		done:    make(chan error),
+func NewConsumer(amqpURI, exchange, exchangeType, queue, key, ctag string) *Consumer {
+	this := &Consumer{
+		conn:         nil,
+		channel:      nil,
+		tag:          ctag,
+		amqpURI:      amqpURI,
+		exchange:     exchange,
+		exchangeType: exchangeType,
+		queue:        queue,
+		key:          key,
+		done:         make(chan error),
 	}
+	return this
+}
+func (this *Consumer) connect_mq() {
+	for {
+		var err error
+		this.conn, err = amqp.Dial(this.amqpURI)
+		if err != nil {
+			log.Println("Dial: ", this.amqpURI, " err:", err)
+			time.Sleep(time.Second * 2)
+			continue
+		}
+		this.channel, err = this.conn.Channel()
+		if err != nil {
+			log.Println("Channel: ", err)
+			time.Sleep(time.Second * 2)
+			continue
+		}
 
-	var err error
+		if err = this.channel.ExchangeDeclare(
+			this.exchange,     // name of the exchange
+			this.exchangeType, // type
+			true,              // durable
+			false,             // delete when complete
+			false,             // internal
+			false,             // noWait
+			nil,               // arguments
+		); err != nil {
+			log.Println("Exchange:", this.exchange, " Declare error: ", err)
+			log.Println("Channel: ", this.channel, err)
+			time.Sleep(time.Second * 2)
+			continue
+		}
 
-	log.Printf("dialing %s", amqpURI)
-	c.conn, err = amqp.Dial(amqpURI)
-	if err != nil {
-		log.Printf("Dial: %s", err)
-		return nil, err
+		state, err := this.channel.QueueDeclare(
+			this.queue, // name of the queue
+			true,       // durable
+			false,      // delete when usused
+			false,      // exclusive
+			false,      // noWait
+			nil,        // arguments
+		)
+		if err != nil {
+			log.Println("Queue Declare: ", this.queue, " error: ", err)
+			time.Sleep(time.Second * 2)
+			continue
+		}
+
+		if err = this.channel.QueueBind(
+			this.queue,    // name of the queue
+			this.key,      // bindingKey
+			this.exchange, // sourceExchange
+			false,         // noWait
+			nil,           // arguments
+		); err != nil {
+			log.Println("Queue Bind: ", err)
+			time.Sleep(time.Second * 2)
+			continue
+		}
+		this.deliveries, err = this.channel.Consume(
+			this.queue, // name
+			this.tag,   // consumerTag,
+			false,      // noAck
+			false,      // exclusive
+			false,      // noLocal
+			false,      // noWait
+			nil,        // arguments
+		)
+		if err != nil {
+			log.Println("Queue Consume: ", err)
+			time.Sleep(time.Second * 2)
+			continue
+		}
+		break
 	}
-
-	log.Printf("got Connection, getting Channel")
-	c.channel, err = c.conn.Channel()
-	if err != nil {
-		log.Printf("Channel: %s", err)
-		return nil, err
-	}
-
-	log.Printf("got Channel, declaring Exchange (%s)", exchange)
-	if err = c.channel.ExchangeDeclare(
-		exchange,          // name of the exchange
-		exchangeType,      // type
-		amqp.UntilDeleted, // lifetime = durable
-		false,             // internal
-		false,             // noWait
-		nil,               // arguments
-	); err != nil {
-		log.Printf("Exchange Declare: %s", err)
-		return nil, err
-	}
-
-	log.Printf("declared Exchange, declaring Queue (%s)", queue)
-	state, err := c.channel.QueueDeclare(
-		queue,             // name of the queue
-		amqp.UntilDeleted, // lifetime = auto-delete
-		false,             // exclusive
-		false,             // noWait
-		nil,               // arguments
-	)
-	if err != nil {
-		log.Printf("Queue Declare: %s", err)
-		return nil, err
-	}
-
-	log.Printf("declared Queue (%d messages, %d consumers), binding to Exchange (key '%s')",
-		state.Messages, state.Consumers, key)
-
-	if err = c.channel.QueueBind(
-		queue,    // name of the queue
-		key,      // bindingKey
-		exchange, // sourceExchange
-		false,    // noWait
-		nil,      // arguments
-	); err != nil {
-		log.Printf("Queue Bind: %s", err)
-		return nil, err
-	}
-
-	log.Printf("Queue bound to Exchange, starting Consume (consumer tag '%s')", c.tag)
-	c.deliveries, err = c.channel.Consume(
-		queue, // name
-		c.tag, // consumerTag,
-		false, // noAck
-		false, // exclusive
-		false, // noLocal
-		false, // noWait
-		nil,   // arguments
-	)
-	if err != nil {
-		log.Printf("Queue Consume: %s", err)
-		return nil, err
-	}
-	return c, nil
 }
 
-func (this *Consumer) handle(work *Work) {
+func (this *Consumer) read_record(message_chan chan *Message) {
+	this.connect_mq()
+	go this.handle(message_chan)
+	for {
+		<-this.done
+		this.connect_mq()
+		go this.handle(message_chan)
+	}
+}
+func (this *Consumer) handle(message_chan chan *Message) {
 	for {
 		select {
 		case d, ok := <-this.deliveries:
@@ -107,7 +129,7 @@ func (this *Consumer) handle(work *Work) {
 					done:    make(chan int),
 					content: rst,
 				}
-				work.message <- msg
+				message_chan <- msg
 				go func() {
 					<-msg.done
 					d.Ack(false)
@@ -116,9 +138,5 @@ func (this *Consumer) handle(work *Work) {
 		}
 	}
 	log.Printf("handle: deliveries channel closed")
-	this.conn.Close()
-	this.channel.Close()
-	this.conn = nil
 	this.done <- nil
-	work.consumer <- this
 }

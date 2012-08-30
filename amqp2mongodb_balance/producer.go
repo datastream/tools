@@ -65,7 +65,7 @@ func (this *Producer) handle(message_chan chan *Message) {
 		for i := range metrics {
 			record := NewMetric(metrics[i])
 			if record != nil {
-				err = this.db.C(this.dbname).Insert(record)
+				err = this.db.C(this.collection).Insert(record)
 				if err != nil {
 					log.Println("mongodb insert failed", err)
 					this.done <- err

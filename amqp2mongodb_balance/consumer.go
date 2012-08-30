@@ -77,7 +77,7 @@ func (this *Consumer) connect_mq() {
 			time.Sleep(time.Second * 2)
 			continue
 		}
-
+		log.Println("Queue Declare: ", this.queue, " message: ", state.Messages, " Consumers:", state.Consumers)
 		if err = this.channel.QueueBind(
 			this.queue,    // name of the queue
 			this.key,      // bindingKey

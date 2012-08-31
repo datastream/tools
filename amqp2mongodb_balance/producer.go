@@ -3,7 +3,6 @@ package main
 import (
 	"labix.org/v2/mgo"
 	"log"
-	"regexp"
 	"strings"
 	"time"
 )
@@ -74,7 +73,7 @@ func (this *Producer) handle(message_chan chan *Message) {
 				err = this.db.C("host_metric").Insert(host)
 
 				if err != nil {
-					if ok, _ := regexp.MatchString("duplicate key", err.Error()); ok {
+					if err.(*mgo.LastError).Code == 11000 {
 						err = nil
 					} else {
 						log.Println("mongodb insert failed", err)

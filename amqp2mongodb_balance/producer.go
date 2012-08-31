@@ -8,21 +8,21 @@ import (
 )
 
 type Producer struct {
-	session    *mgo.Session
-	db         *mgo.Database
-	mongouri   string
-	dbname     string
-	user       string
-	password   string
-	done       chan error
+	session  *mgo.Session
+	db       *mgo.Database
+	mongouri string
+	dbname   string
+	user     string
+	password string
+	done     chan error
 }
 
 func NewProducer(mongouri, dbname, user, password string) *Producer {
 	this := &Producer{
-		mongouri:   mongouri,
-		dbname:     dbname,
-		user:       user,
-		password:   password,
+		mongouri: mongouri,
+		dbname:   dbname,
+		user:     user,
+		password: password,
 	}
 	return this
 }

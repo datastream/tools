@@ -21,6 +21,7 @@ func check_whitelist(check_chan chan WhiteListRequest) {
 	go m.handle(check_chan)
 	for {
 		<-m.done
+		m.session.Close()
 		m = connect_db(*mongouri, *dbname, *collection, *user, *password)
 		go m.handle(check_chan)
 	}

@@ -12,17 +12,15 @@ type Producer struct {
 	db         *mgo.Database
 	mongouri   string
 	dbname     string
-	collection string
 	user       string
 	password   string
 	done       chan error
 }
 
-func NewProducer(mongouri, dbname, collection, user, password string) *Producer {
+func NewProducer(mongouri, dbname, user, password string) *Producer {
 	this := &Producer{
 		mongouri:   mongouri,
 		dbname:     dbname,
-		collection: collection,
 		user:       user,
 		password:   password,
 	}
@@ -65,7 +63,13 @@ func (this *Producer) handle(message_chan chan *Message) {
 		for i := range metrics {
 			record := NewMetric(metrics[i])
 			if record != nil {
-				err = this.db.C(this.collection).Insert(record)
+				err = this.db.C("monitor_data").Insert(record)
+				host := &Host{
+					Host:   record.Hostname,
+					Metric: metrics[i],
+					Ttl:    -1,
+				}
+				err = this.db.C("host_metric").Insert(host)
 				if err != nil {
 					log.Println("mongodb insert failed", err)
 					this.done <- err

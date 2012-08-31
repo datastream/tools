@@ -17,6 +17,12 @@ type Metric struct {
 	Timestamp int64
 }
 
+type Host struct {
+	Host   string
+	Metric string
+	Ttl    int
+}
+
 func NewMetric(s string) *Metric {
 	this := new(Metric)
 	splitstring := strings.Split(s, " ")

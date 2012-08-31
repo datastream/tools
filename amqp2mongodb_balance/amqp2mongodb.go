@@ -15,7 +15,6 @@ var (
 	user         = flag.String("user", "admin", "mongodb user")
 	password     = flag.String("passwd", "admin", "mongodb password")
 	dbname       = flag.String("db", "mydatabase", "mongodb database")
-	collection   = flag.String("collection", "metrics", "mongodb collection")
 )
 
 const nWorker = 10
@@ -25,17 +24,17 @@ type Message struct {
 	content string
 }
 
-func task(message_chan chan *Message) {
+func task() {
+	message_chan := make(chan *Message)
 	consumer := NewConsumer(*uri, *exchange, *exchangeType, *queue, *bindingKey, *consumerTag)
-	producer := NewProducer(*mongouri, *dbname, *collection, *user, *password)
+	producer := NewProducer(*mongouri, *dbname, *user, *password)
 	go consumer.read_record(message_chan)
 	go producer.insert_record(message_chan)
 }
 func main() {
 	flag.Parse()
-	message_chan := make(chan *Message)
 	for i := 0; i < nWorker; i++ {
-		go task(message_chan)
+		go task()
 	}
 	select {}
 }

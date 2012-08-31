@@ -73,15 +73,14 @@ func (this *Producer) handle(message_chan chan *Message) {
 				}
 				err = this.db.C("host_metric").Insert(host)
 
-				if ok, _ := regexp.MatchString("duplicate key", err.Error()); ok {
-					//log.Println(err)
-					err = nil
-				}
-
 				if err != nil {
-					log.Println("mongodb insert failed", err)
-					this.done <- err
-					break
+					if ok, _ := regexp.MatchString("duplicate key", err.Error()); ok {
+						err = nil
+					} else {
+						log.Println("mongodb insert failed", err)
+						this.done <- err
+						break
+					}
 				}
 			} else {
 				log.Println("metrics error", metrics[i])

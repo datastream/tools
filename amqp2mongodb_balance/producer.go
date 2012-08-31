@@ -64,9 +64,10 @@ func (this *Producer) handle(message_chan chan *Message) {
 			record := NewMetric(metrics[i])
 			if record != nil {
 				err = this.db.C("monitor_data").Insert(record)
+				splitname := strings.Split(metrics[i], " ")
 				host := &Host{
 					Host:   record.Hostname,
-					Metric: metrics[i],
+					Metric: splitname[0],
 					Ttl:    -1,
 				}
 				err = this.db.C("host_metric").Insert(host)

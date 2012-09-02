@@ -24,17 +24,14 @@ type Message struct {
 	content string
 }
 
-func task() {
-	message_chan := make(chan *Message)
-	consumer := NewConsumer(*uri, *exchange, *exchangeType, *queue, *bindingKey, *consumerTag)
-	producer := NewProducer(*mongouri, *dbname, *user, *password)
-	go consumer.read_record(message_chan)
-	go producer.insert_record(message_chan)
-}
 func main() {
 	flag.Parse()
+	producer := NewProducer(*mongouri, *dbname, *user, *password)
 	for i := 0; i < nWorker; i++ {
-		go task()
+		message_chan := make(chan *Message)
+		consumer := NewConsumer(*uri, *exchange, *exchangeType, *queue, *bindingKey, *consumerTag)
+		go consumer.read_record(message_chan)
+		go producer.insert_record(message_chan)
 	}
 	select {}
 }

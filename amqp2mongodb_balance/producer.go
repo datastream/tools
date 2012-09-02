@@ -9,7 +9,6 @@ import (
 
 type Producer struct {
 	session  *mgo.Session
-	db       *mgo.Database
 	mongouri string
 	dbname   string
 	user     string
@@ -28,15 +27,15 @@ func NewProducer(mongouri, dbname, user, password string) *Producer {
 }
 
 func (this *Producer) connect_mongodb() {
+	var err error
 	for {
-		session, err := mgo.Dial(this.mongouri)
+		this.session, err = mgo.Dial(this.mongouri)
 		if err != nil {
 			time.Sleep(time.Second * 2)
 			continue
 		}
-		this.db = session.DB(this.dbname)
 		if len(this.user) > 0 {
-			err = this.db.Login(this.user, this.password)
+			err = this.session.DB(this.dbname).Login(this.user, this.password)
 			if err != nil {
 				time.Sleep(time.Second * 2)
 				continue
@@ -50,12 +49,14 @@ func (this *Producer) insert_record(message_chan chan *Message) {
 	go this.handle(message_chan)
 	for {
 		<-this.done
-		this.connect_mongodb()
+		this.session.Refresh()
 		go this.handle(message_chan)
 	}
 }
 
 func (this *Producer) handle(message_chan chan *Message) {
+	session := this.session.Copy()
+	defer session.Close()
 	for {
 		var err error
 		msg := <-message_chan
@@ -63,14 +64,14 @@ func (this *Producer) handle(message_chan chan *Message) {
 		for i := range metrics {
 			record := NewMetric(metrics[i])
 			if record != nil {
-				err = this.db.C("monitor_data").Insert(record)
+				err = session.DB(this.dbname).C("monitor_data").Insert(record)
 				splitname := strings.Split(metrics[i], " ")
 				host := &Host{
 					Host:   record.Hostname,
 					Metric: splitname[0],
 					Ttl:    -1,
 				}
-				err = this.db.C("host_metric").Insert(host)
+				err = session.DB(this.dbname).C("host_metric").Insert(host)
 
 				if err != nil {
 					if err.(*mgo.LastError).Code == 11000 {

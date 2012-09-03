@@ -9,57 +9,65 @@ import (
 
 type Mongo struct {
 	session    *mgo.Session
-	collection *mgo.Collection
+	mongouri   string
+	dbname     string
+	collection string
+	user       string
+	password   string
 	done       chan error
 }
 
 func NewMongo(mongouri, dbname, collection, user, password string) (m *Mongo, err error) {
-	m = new(Mongo)
+	m = &Mongo{
+		mongouri:   mongouri,
+		dbname:     dbname,
+		collection: collection,
+		user:       user,
+		password:   password,
+	}
 	m.session, err = mgo.DialWithTimeout(mongouri, 10)
 	m.done = make(chan error)
-	log.Println("New session")
 	if err != nil {
 		m.session = nil
+		log.Println(err)
 		return
 	}
-	db := m.session.DB(dbname)
-	err = db.Login(user, password)
+	err = m.session.DB(m.dbname).Login(user, password)
 	if err != nil {
 		m.session = nil
+		log.Println(err)
 		return
 	}
-	m.collection = db.C(collection)
 	return
 }
-func (this *Mongo) handle(check_chan chan WhiteListRequest) {
-	for {
-		req := <-check_chan
-		var err error
-		var gateway [][]byte
-		ip_list := strings.Split(req.ip, ",")
-		for i := range ip_list {
-			if len(ip_list[i]) < 7 {
-				continue
-			}
-			var n int
-			n, err = this.collection.Find(bson.M{"ip": strings.TrimSpace(ip_list[i])}).Count()
-			if err != nil {
-				log.Printf("query error:%s\n", err)
-				this.done <- nil
-				break
-			}
-			if n > 0 {
-				log.Println(ip_list[i], "is gateway")
-				gateway = append(gateway, []byte(ip_list[i]))
-			}
+func (this *Mongo) handle(req WhiteListRequest) {
+	session := this.session.Clone()
+	defer session.Close()
+	var err error
+	var gateway [][]byte
+	ip_list := strings.Split(req.ip, ",")
+	for i := range ip_list {
+		if len(ip_list[i]) < 7 {
+			continue
 		}
-		if len(gateway) > 1 {
-			rq := &FirewallRequest{}
-			rq.iprequest.RequestType = REQUEST_TYPE_DELTE.Enum()
-			rq.iprequest.Ipaddresses = gateway
-			for l := range req.hosts {
-				go sendtohost(req.hosts[l], rq)
-			}
+		var n int
+		n, err = session.DB(this.dbname).C(this.collection).Find(bson.M{"ip": strings.TrimSpace(ip_list[i])}).Count()
+		if err != nil {
+			log.Printf("query error:%s\n", err)
+			this.done <- nil
+			break
+		}
+		if n > 0 {
+			log.Println(ip_list[i], "is gateway")
+			gateway = append(gateway, []byte(ip_list[i]))
+		}
+	}
+	if len(gateway) > 1 {
+		rq := &FirewallRequest{}
+		rq.iprequest.RequestType = REQUEST_TYPE_DELTE.Enum()
+		rq.iprequest.Ipaddresses = gateway
+		for l := range req.hosts {
+			go sendtohost(req.hosts[l], rq)
 		}
 	}
 }

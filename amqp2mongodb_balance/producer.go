@@ -66,7 +66,7 @@ func (this *Producer) insert_record(message_chan chan *Message) {
 }
 
 func (this *Producer) handle(msg *Message) bool {
-	session := this.session.Copy()
+	session := this.session.Clone()
 	defer session.Close()
 	var err error
 	metrics := strings.Split(strings.TrimSpace(msg.content), "\n")

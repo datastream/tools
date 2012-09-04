@@ -44,7 +44,7 @@ func NewMetric(s string) *Metric {
 	Hostname = splitname[len(splitname)-1]
 	Colo = splitname[len(splitname)-2]
 	var p int
-	if rst, _ := regexp.MatchString("(1sec|10sec|1min|5min)", splitname[0]); rst {
+	if rst, _ := regexp.MatchString("(1sec|10sec|1min|5min|10min|15min)", splitname[0]); rst {
 		Retention = splitname[0]
 		App = splitname[1]
 		p = 2

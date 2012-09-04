@@ -78,7 +78,7 @@ func (this *Producer) handle(message_chan chan *Message) {
 				err = session.DB(this.dbname).C("host_metric").Insert(host)
 
 				if err != nil {
-					if err.(*mgo.LastError).Code == 11000 {
+					if rst, _ := regexp.MatchString("dup", err.Error()); rst {
 						err = nil
 					} else {
 						log.Println("mongodb insert failed", err)

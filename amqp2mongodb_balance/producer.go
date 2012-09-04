@@ -64,14 +64,14 @@ func (this *Producer) handle(message_chan chan *Message) {
 		metrics := strings.Split(strings.TrimSpace(msg.content), "\n")
 		for i := range metrics {
 			record := NewMetric(metrics[i])
-			if rst, _ := regexp.MatchString("sd[a-z]{1,2}[0-9]{1,2}", record.Name); rst && record.App == "disk" {
+			if rst, _ := regexp.MatchString("sd[a-z]{1,2}[0-9]{1,2}", record.Nm); rst && record.App == "disk" {
 				continue
 			}
 			if record != nil {
-				err = session.DB(this.dbname).C("monitor_data").Insert(record)
+				err = session.DB(this.dbname).C(record.App).Insert(record)
 				splitname := strings.Split(metrics[i], " ")
 				host := &Host{
-					Host:   record.Hostname,
+					Host:   record.Hs,
 					Metric: splitname[0],
 					Ttl:    -1,
 				}

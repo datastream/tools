@@ -68,6 +68,9 @@ func (this *Producer) handle(message_chan chan *Message) {
 				if rst, _ := regexp.MatchString("sd[a-z]{1,2}[0-9]{1,2}", record.Nm); rst && record.App == "disk" {
 					continue
 				}
+				if rst, _ := regexp.MatchString("(eth|br|bond)[0-9]{1,2}", record.Nm); !rst && record.App == "interface" {
+					continue
+				}
 				err = session.DB(this.dbname).C(record.App).Insert(record.Record)
 				splitname := strings.Split(metrics[i], " ")
 				host := &Host{

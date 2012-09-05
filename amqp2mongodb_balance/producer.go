@@ -90,7 +90,7 @@ func (this *Producer) handle(message_chan chan *Message) {
 					}
 				}
 			} else {
-				log.Println("metrics error", metrics[i])
+				log.Println("metrics error:", msg.content)
 			}
 		}
 		if err != nil {

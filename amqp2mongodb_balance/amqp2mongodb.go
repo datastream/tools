@@ -26,7 +26,7 @@ type Message struct {
 
 func main() {
 	flag.Parse()
-	producer := NewProducer(*mongouri, *dbname, *user, *password)
+	producer := NewMongo(*mongouri, *dbname, *user, *password)
 	for i := 0; i < nWorker; i++ {
 		message_chan := make(chan *Message)
 		consumer := NewConsumer(*uri, *exchange, *exchangeType, *queue, *bindingKey, *consumerTag)

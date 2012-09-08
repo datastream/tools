@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-type Producer struct {
+type Mongo struct {
 	session  *mgo.Session
 	mongouri string
 	dbname   string
@@ -17,8 +17,8 @@ type Producer struct {
 	done     chan error
 }
 
-func NewProducer(mongouri, dbname, user, password string) *Producer {
-	this := &Producer{
+func NewMongo(mongouri, dbname, user, password string) *Mongo {
+	this := &Mongo{
 		mongouri: mongouri,
 		dbname:   dbname,
 		user:     user,
@@ -27,7 +27,7 @@ func NewProducer(mongouri, dbname, user, password string) *Producer {
 	return this
 }
 
-func (this *Producer) connect_mongodb() {
+func (this *Mongo) connect_mongodb() {
 	var err error
 	for {
 		this.session, err = mgo.Dial(this.mongouri)
@@ -45,17 +45,17 @@ func (this *Producer) connect_mongodb() {
 		break
 	}
 }
-func (this *Producer) insert_record(message_chan chan *Message) {
+func (this *Mongo) insert_record(message_chan chan *Message) {
 	this.connect_mongodb()
-	go this.handle(message_chan)
+	go this.handle_insert(message_chan)
 	for {
 		<-this.done
 		this.session.Refresh()
-		go this.handle(message_chan)
+		go this.handle_insert(message_chan)
 	}
 }
 
-func (this *Producer) handle(message_chan chan *Message) {
+func (this *Mongo) handle_insert(message_chan chan *Message) {
 	session := this.session.Copy()
 	defer session.Close()
 	for {

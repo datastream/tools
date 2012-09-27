@@ -79,7 +79,7 @@ func run_command(req chan *Request, expire_chan chan *ipset, sleep_chan chan int
 						continue
 					}
 					if int(currentspeed) < *softlimit {
-						continue
+						*rq.iprequest.Timeout = 300
 					}
 					cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-A", hashname, string(rq.iprequest.Ipaddresses[i]))
 					var output bytes.Buffer

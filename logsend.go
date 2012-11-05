@@ -10,7 +10,8 @@ import (
 )
 
 var (
-	filename = flag.String("file", "/var/log/apache/access.log", "filenema")
+	filename = flag.String("file", "/var/log/apache/access.log", "filename")
+	port     = flag.String("port", "1234", "server port")
 )
 
 func init() {
@@ -61,7 +62,7 @@ func send_log(fd net.Conn, logchan chan []byte) {
 	fmt.Printf("TCP closed!\n")
 }
 func run_server(logchan chan []byte) {
-	lp, err := net.Listen("tcp", "0.0.0.0:1234")
+	lp, err := net.Listen("tcp", "0.0.0.0:"+*port)
 	if err != nil {
 		fmt.Printf("Bind 1234 failed")
 		return

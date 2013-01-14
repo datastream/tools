@@ -7,40 +7,45 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
+	"os/exec"
 	"strings"
 )
 
 var (
 	file = flag.String("file", "/var/log/apache/access.log", "filenema")
 	host = flag.String("host", "upload-9", "hostname")
+	max  = flag.Int("max", 128, "max connection")
 )
 
-func init() {
-	flag.Parse()
-}
-
 type Request struct {
-	Url  string
-	Host string
+	Url   string
+	Host  string
+	Ua    string
+	Refer string
 }
 
 func main() {
-	req_chan := make(chan *Request)
-	rst_chan := make(chan int)
-	go read_file(*file, req_chan)
-	go sendrequest(req_chan, *host, rst_chan)
-	rst := <-rst_chan
-	log.Println(rst)
+	flag.Parse()
+	done := make(chan int)
+	go read_file(*file)
+	//for i := 0; i < *max; i++ {
+	//	go sendrequest(req_chan, *host)
+	//}
+	<-done
 }
 
-func sendrequest(req_chan chan *Request, host string, done chan int) {
-	client := &http.Client{}
-	good_count := 0
-	bad_count := 0
+func sendrequest(req_chan chan *Request, host string) {
+	connect_count := 0
+	var client *http.Client
 	for {
+		connect_count++
+		if connect_count < 9 {
+			client = &http.Client{}
+			connect_count = 0
+		}
 		v, ok := <-req_chan
 		if !ok {
+			log.Println("error request")
 			break
 		}
 		req, err := http.NewRequest("GET", "http://"+host+v.Url, nil)
@@ -50,48 +55,82 @@ func sendrequest(req_chan chan *Request, host string, done chan int) {
 			continue
 		}
 		req.Host = v.Host
+		if len(v.Refer) > 1 {
+			req.Header.Set("Referer", v.Refer)
+		}
+		if len(v.Ua) > 1 {
+			req.Header.Set("User-Agent", v.Ua)
+		}
 		resp, err := client.Do(req)
 		if err != nil {
 			log.Println("connet timeout:", host, err)
 			break
 		}
-		if resp.StatusCode != 200 {
-			log.Println("return ", resp.Status, v.Url, v.Host)
-			bad_count++
-		} else {
-			good_count++
-		}
 		_, _ = ioutil.ReadAll(resp.Body)
 		resp.Body.Close()
 	}
-	done <- bad_count
 }
 
-func read_file(name string, req_chan chan *Request) {
-	fd, err := os.Open("./" + name)
+func sendrequest2(v *Request, host string) {
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", "http://"+host+v.Url, nil)
+
 	if err != nil {
-		log.Println("server list file open Error:", name)
-	} else {
-		f := bufio.NewReader(fd)
-		for {
-			line, err := f.ReadString('\n')
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				log.Println("file readline error")
-				break
-			}
-			log := strings.Split(strings.TrimSpace(line), " ")
-			if len(log) < 2 {
-				continue
-			}
-			req := &Request{
-				Url:  log[0],
-				Host: log[1],
-			}
-			req_chan <- req
-		}
+		log.Printf("Error req")
 	}
-	close(req_chan)
+	req.Host = v.Host
+	if len(v.Refer) > 1 {
+		req.Header.Set("Referer", v.Refer)
+	}
+	if len(v.Ua) > 1 {
+		req.Header.Set("User-Agent", v.Ua)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Println("connet timeout:", host, err)
+		return
+	}
+	_, _ = ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
+}
+
+func read_file(file_name string) {
+	cmd := exec.Command("/bin/cat", file_name)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		log.Println("Read Pipe error", err)
+	}
+	f := bufio.NewReaderSize(stdout, 10240)
+	err = cmd.Start()
+	if err != nil {
+		log.Println("run error", err)
+	}
+	for {
+		line, err := f.ReadString('\n')
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Println("file readline error")
+			break
+		}
+		parsed_line := strings.Split(strings.TrimSpace(line), "\"")
+		if len(parsed_line) < 12 {
+			continue
+		}
+		url := strings.Split(parsed_line[1], " ")
+		if len(url) < 2 {
+			continue
+		}
+		req := &Request{
+			Url:   url[1],
+			Host:  parsed_line[7],
+			Refer: parsed_line[3],
+			Ua:    parsed_line[11],
+		}
+		go sendrequest2(req, *host)
+		//req_chan <- req
+	}
+	log.Println(err)
+	//close(req_chan)
 }

@@ -3,247 +3,124 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"code.google.com/p/goprotobuf/proto"
-	"flag"
-	"io"
 	"log"
-	"net"
+	"os"
 	"os/exec"
-	"regexp"
 	"strconv"
-	"sync"
+	"strings"
 	"time"
 )
 
-var (
-	port      = flag.String("port", "1234", "access port")
-	blockset  = flag.String("blockset", "ddos", "ddos ipset")
-	softlimit = flag.Int("softlimit", 14, "softlimit(MB)")
-	hardlimit = flag.Int("hardlimit", 30, "hardlimit(MB)")
-)
-
-const basename = "ddoshash"
-
-var indexlock *sync.Mutex
-var index int
-
-var hashname string
-var hashlist []string
-
-var currentspeed uint64
-
-type ipset struct {
-	ip    string
-	set   string
-	timer *time.Timer
-}
-
-func main() {
-	flag.Parse()
-	indexlock = new(sync.Mutex)
-	hashname = basename
-	req := make(chan *Request)
-	done := make(chan int)
-	expire_chan := make(chan *ipset)
-	sleep_chan := make(chan int32)
-	speed_chan := make(chan uint64)
-	index = 0
-	hashname = basename + strconv.Itoa(index)
-
-	create_set(*blockset)
-	create_hash(hashname)
-	add_hashlist(hashname)
-	for i := range hashlist {
-		log.Println(hashlist[i])
-	}
-	go func() {
-		currentspeed = <-speed_chan
-	}()
-	go run_command(req, expire_chan, sleep_chan)
-	go read_speed(speed_chan, sleep_chan)
-	go expire_ip(expire_chan, sleep_chan)
-	go run_server(req, done)
-	<-done
-}
-
-func run_command(req chan *Request, expire_chan chan *ipset, sleep_chan chan int32) {
-	for {
-		rq := <-req
-		if rq == nil {
-			continue
-		}
-		if *rq.iprequest.RequestType == REQUEST_TYPE_CREATE {
-			go func() {
-				for i := range rq.iprequest.Ipaddresses {
-					if len(rq.iprequest.Ipaddresses[i]) < 7 {
-						continue
-					}
-					if int(currentspeed) < *softlimit {
-						*rq.iprequest.Timeout = 300
-					}
-					cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-A", hashname, string(rq.iprequest.Ipaddresses[i]))
-					var output bytes.Buffer
-					cmd.Stderr = &output
-					err := cmd.Run()
-					if err != nil {
-						reg, e := regexp.Compile("set is full")
-						if e == nil && reg.MatchString(output.String()) {
-							log.Println("ipset ", hashname, " is full")
-							indexlock.Lock()
-							index++
-							hashname = basename + strconv.Itoa(index)
-							create_hash(hashname)
-							indexlock.Unlock()
-							add_hashlist(hashname)
-						} else {
-							continue
-						}
-					}
-					exp := &ipset{
-						ip:  string(rq.iprequest.Ipaddresses[i]),
-						set: hashname,
-					}
-					exp.timer = time.AfterFunc(time.Duration(*rq.iprequest.Timeout)*time.Second,
-						func() { expire_chan <- exp })
-				}
-			}()
-		}
-
-		if *rq.iprequest.RequestType == REQUEST_TYPE_DELTE {
-			go func() {
-				for i := range rq.iprequest.Ipaddresses {
-					for l := range hashlist {
-						_, _ = exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-D", hashlist[l], string(rq.iprequest.Ipaddresses[i])).Output()
-					}
-				}
-			}()
-		}
-
-		if *rq.iprequest.RequestType == REQUEST_TYPE_UPDATE {
-			go func() {
-				for i := range rq.iprequest.Ipaddresses {
-					for l := range hashlist {
-						_, _ = exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-D", hashlist[l], string(rq.iprequest.Ipaddresses[i])).Output()
-					}
-				}
-				rq.iprequest.RequestType = REQUEST_TYPE_CREATE.Enum()
-				req <- rq
-			}()
-		}
-
-		if *rq.iprequest.RequestType == REQUEST_TYPE_READ {
-			go func() {
-				cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-L")
-				response := &Response{}
-				if out, err := cmd.Output(); err != nil {
-					log.Println("ipset list failed ")
-					response.StatCode = STATES_CODE_ERR.Enum()
-					response.Msg = []byte("failed to list")
-				} else {
-					response.StatCode = STATES_CODE_OK.Enum()
-					response.Msg = out
-				}
-				rq.rsp <- response
-			}()
-		}
-
-		if *rq.iprequest.RequestType == REQUEST_TYPE_CLEAR {
-			go func() {
-				for i := range hashlist {
-					cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-F", hashlist[i])
-					if _, err := cmd.Output(); err != nil {
-						log.Println("ipset clear failed")
-					} else {
-						log.Println("ipset cleared")
-					}
-				}
-			}()
-			hashname = basename
-			indexlock.Lock()
-			index = 0
-			indexlock.Unlock()
-		}
-		if *rq.iprequest.RequestType == REQUEST_TYPE_STOP {
-			go func() { sleep_chan <- *rq.iprequest.Timeout }()
-		}
-	}
-}
-
-func run_server(req chan *Request, done chan int) {
-	server, err := net.Listen("tcp", "0.0.0.0:"+*port)
-	if err != nil {
-		log.Fatal("server bind failed:", err)
-	}
-	defer server.Close()
-	for {
-		fd, err := server.Accept()
-		if err != nil {
-			log.Println("accept error", err)
-		}
-		go handle(fd, req)
-	}
-	done <- 1
-}
-
-type Request struct {
-	iprequest *IPRequest
-	rsp       chan *Response
-}
-
-func handle(fd net.Conn, req chan *Request) {
-	defer fd.Close()
-	reader := bufio.NewReaderSize(fd, 1024*20)
-	buf := make([]byte, 4)
-	if _, err := reader.Read(buf); err != nil {
-		return
-	}
-	data_length := int(decodefixed32(buf))
-	data_record := make([]byte, data_length)
-	var index = 0
-	for {
-		var size int
-		var err error
-		if size, err = reader.Read(data_record[index:]); err != nil {
-			if err == io.EOF {
+func check_iphash() {
+	output, err := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-L", *blockset).Output()
+	if err == nil {
+		buf := bytes.NewBuffer(output)
+		i := false
+		for {
+			line, _ := buf.ReadString('\n')
+			if line[:len(line)-1] == "Members:" {
+				i = true
+				continue
+			}
+			if line[:len(line)-1] == "Bindings:" {
 				break
 			}
-			log.Println("read socket data failed", err, "read size:", size, "data_length:", data_length)
-			break
-		}
-		index += size
-		if index == data_length {
-			break
-		}
-	}
-	request := &Request{
-		iprequest: new(IPRequest),
-		rsp:       make(chan *Response),
-	}
-	proto.Unmarshal(data_record, request.iprequest)
-	req <- request
-	if *request.iprequest.RequestType == REQUEST_TYPE_READ {
-		response := <-request.rsp
-		data, err := proto.Marshal(response)
-		fd.Write(encodefixed32(uint64(len(data))))
-		if _, err = fd.Write(data); err != nil {
-			log.Println("write socket data error", err)
-			return
+			if i {
+				hashlist = append(hashlist, line[:len(line)-1])
+			}
 		}
 	}
 }
-func encodefixed32(x uint64) []byte {
-	var p []byte
-	p = append(p,
-		uint8(x),
-		uint8(x>>8),
-		uint8(x>>16),
-		uint8(x>>24))
-	return p
+func create_set(setname string) {
+	_, err := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-L", setname).Output()
+	if err == nil {
+		log.Println("setlist ", *blockset, " exist!")
+		return
+	}
+	cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-N", setname, "setlist")
+	if err = cmd.Run(); err != nil {
+		log.Println("ipset create setlist failed:", err)
+	}
 }
-func decodefixed32(num []byte) (x uint64) {
-	x = uint64(num[0])
-	x |= uint64(num[1]) << 8
-	x |= uint64(num[2]) << 16
-	x |= uint64(num[3]) << 24
-	return
+
+func create_hash(name string) {
+	check_iphash()
+	full := false
+	if len(hashlist) >= 8 {
+		if index > 7 {
+			index = 0
+		}
+		hashname = hashlist[index]
+		name = hashname
+		full = true
+		log.Println("setlist full, reuse ", hashname)
+	}
+	_, err := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-L", name).Output()
+	if err == nil {
+		log.Println("iphash ", name, " exist!")
+		if full {
+			_, _ = exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-F", name).Output()
+		}
+		return
+	}
+	cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-N", name, "iphash")
+	hashlist = append(hashlist, name)
+	if err := cmd.Run(); err != nil {
+		log.Println("ipset create iphash ", name, " failed:", err)
+	}
+}
+
+func add_hashlist(hash string) {
+	_, err := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-D", *blockset, hash).Output()
+	cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-A", *blockset, hash)
+	if err = cmd.Run(); err != nil {
+		log.Println("ipset add ", hash, " to ", *blockset, " setlist failed:", err)
+	}
+}
+
+func expire_ip(expire_chan chan *ipset, sleep_chan chan int32) {
+	for {
+		select {
+		case item := <-expire_chan:
+			{
+				cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-D", item.set, item.ip)
+				err := cmd.Run()
+				if err != nil {
+					log.Println(item.set, ": ", item.ip, " auto delete error", err)
+				} else {
+					log.Println("auto expire:", item.set, item.ip)
+				}
+			}
+		case i := <-sleep_chan:
+			{
+				time.Sleep(time.Second * time.Duration(i))
+				log.Println("stop auto expire")
+			}
+		}
+	}
+}
+
+func read_speed(speed_chan chan uint64, sleep_chan chan int32) {
+	fd, err := os.Open("/sys/class/net/eth0/statistics/rx_bytes")
+	if err != nil {
+		log.Println("fail to read /sys/class/net/eth0/statistics/rx_bytes")
+		return
+	}
+	reader := bufio.NewReader(fd)
+	var line string
+	for {
+		fd.Seek(0, 0)
+		line, _ = reader.ReadString('\n')
+		stat1, _ := strconv.ParseUint(strings.TrimSpace(line), 10, 64)
+		time.Sleep(time.Second * 5)
+		fd.Seek(0, 0)
+		line, _ = reader.ReadString('\n')
+		stat2, _ := strconv.ParseUint(strings.TrimSpace(line), 10, 64)
+		speed := (stat2 - stat1) / 5 / 1024 / 1024
+		speed_chan <- speed
+		if int(speed) > *hardlimit {
+			sleep_chan <- int32(speed) * 6
+		}
+		time.Sleep(time.Second * 5)
+	}
 }

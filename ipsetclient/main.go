@@ -216,7 +216,11 @@ func handle(fd net.Conn, req chan *Request) {
 		iprequest: new(IPRequest),
 		rsp:       make(chan *Response),
 	}
-	proto.Unmarshal(data_record, request.iprequest)
+	err := proto.Unmarshal(data_record, request.iprequest)
+	if err != nil {
+		log.Println("Unmarshal failed:", err)
+		return
+	}
 	req <- request
 	if *request.iprequest.RequestType == REQUEST_TYPE_READ {
 		response := <-request.rsp

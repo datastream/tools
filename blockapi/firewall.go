@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 )
 
 func gen_protov1(configname string, rq *http.Request) string {
@@ -58,18 +57,6 @@ func gen_protov1(configname string, rq *http.Request) string {
 		{
 			return "wrong action\n"
 		}
-	}
-	if *req.iprequest.RequestType == REQUEST_TYPE_CREATE {
-		go func() {
-			rq := &WhiteListRequest{
-				hosts: hosts,
-			}
-			for i := range req.iprequest.Ipaddresses {
-				rq.ip += string(req.iprequest.Ipaddresses[i]) + ","
-			}
-			time.Sleep(time.Second * 10)
-			check_chan <- *rq
-		}()
 	}
 	for i := range hosts {
 		go sendtohost(hosts[i], req)

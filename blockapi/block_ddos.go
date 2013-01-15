@@ -22,17 +22,10 @@ type HttpRequest struct {
 	data url.Values
 }
 
-type WhiteListRequest struct {
-	ip    string
-	hosts []string
-}
-
 type FirewallRequest struct {
 	iprequest *IPRequest
 	rsp       chan *Response
 }
-
-var check_chan chan WhiteListRequest
 
 func NginxApi(w http.ResponseWriter, req *http.Request) {
 	pat := strings.Split(req.URL.Path, "/")
@@ -82,8 +75,6 @@ func ReadmeApi(w http.ResponseWriter, req *http.Request) {
 }
 func main() {
 	flag.Parse()
-	check_chan = make(chan WhiteListRequest)
-	go check_whitelist(check_chan)
 	http.HandleFunc("/", ReadmeApi)
 	err := http.ListenAndServe(":"+*port, nil)
 	if err != nil {

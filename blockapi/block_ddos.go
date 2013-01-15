@@ -10,11 +10,6 @@ import (
 
 var (
 	port       = flag.String("port", "1234", "access port")
-	mongouri   = flag.String("mongouri", "mongodb://myuser:mypass@localhost:27017/mydatabase", "MONGODB RUI")
-	user       = flag.String("user", "admin", "mongodb user")
-	password   = flag.String("passwd", "admin", "mongodb password")
-	dbname     = flag.String("db", "mydatabase", "mongodb database")
-	collection = flag.String("collection", "metrics", "mongodb collection")
 )
 
 type HttpRequest struct {

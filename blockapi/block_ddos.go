@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	port       = flag.String("port", "1234", "access port")
+	port = flag.String("port", "1234", "access port")
 )
 
 type HttpRequest struct {

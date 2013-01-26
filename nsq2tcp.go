@@ -34,7 +34,7 @@ func main() {
 	for _, ld_addr := range lookupdlist {
 		go read_nsq(ld_addr, *topic, *logchan, lreader)
 	}
-	go run_server(lreader)
+	go run_server(lreader, *port)
 	<-exitChan
 }
 
@@ -65,8 +65,8 @@ func (this *logreader) HandleMessage(m *nsq.Message, responseChannel chan *nsq.F
 }
 
 //tcp server
-func run_server(lreader *logreader) {
-	lp, err := net.Listen("tcp", "0.0.0.0:"+*port)
+func run_server(lreader *logreader, port string) {
+	lp, err := net.Listen("tcp", port)
 	if err != nil {
 		fmt.Printf("Bind 1234 failed")
 		return
@@ -86,7 +86,9 @@ func send_log(fd net.Conn, lreader *logreader) {
 	defer fd.Close()
 	for {
 		msg := <-lreader.logchan
-		_, err := fd.Write(msg.Body)
+		if msg != nil {
+			_, err := fd.Write(msg.Body)
+		}
 		if err != nil {
 			fmt.Printf("TCP connect write error")
 			break

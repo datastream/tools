@@ -1,14 +1,14 @@
 package main
 
 import (
-        "flag"
-        "net/http"
+	"flag"
 	"io/ioutil"
 	"log"
+	"net/http"
 )
 
 var (
-        port       = flag.String("port", "1234", "access port")
+	port = flag.String("port", "1234", "access port")
 )
 
 func PostApi(w http.ResponseWriter, req *http.Request) {
@@ -17,15 +17,15 @@ func PostApi(w http.ResponseWriter, req *http.Request) {
 		log.Println(err)
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=\"utf-8\"")
-        w.WriteHeader(http.StatusOK)
-        w.Write([]byte("hello world!"))
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("hello world!"))
 }
 
 func main() {
-        flag.Parse()
-        http.HandleFunc("/", PostApi)
+	flag.Parse()
+	http.HandleFunc("/", PostApi)
 	err := http.ListenAndServe(":"+*port, nil)
-        if err != nil {
-                log.Println(err)
-        }
+	if err != nil {
+		log.Println(err)
+	}
 }

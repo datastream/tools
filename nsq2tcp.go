@@ -90,7 +90,7 @@ func send_log(fd net.Conn, lreader *logreader) {
 		if msg != nil {
 			_, err = fd.Write(msg.Body)
 		}
-		_, err = fd.Write(byte[]("\n"))
+		_, err = fd.Write([]byte("\n"))
 		if err != nil {
 			fmt.Printf("TCP connect write error")
 			break

@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	port             = flag.String("port", ":1514", "log reciever port")
+	port             = flag.String("port", ":1234", "log server port")
 	topic            = flag.String("topic", "nginx_log", "nsq topic")
 	logchan          = flag.String("chan", "nginx_log", "nsq chan")
 	lookupdHTTPAddrs = flag.String("lookupd-http-address", "127.0.0.1:4161", "lookupd http")
@@ -90,6 +90,7 @@ func send_log(fd net.Conn, lreader *logreader) {
 		if msg != nil {
 			_, err = fd.Write(msg.Body)
 		}
+		_, err = fd.Write(byte[]("\n"))
 		if err != nil {
 			fmt.Printf("TCP connect write error")
 			break

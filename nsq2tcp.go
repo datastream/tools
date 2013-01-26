@@ -84,10 +84,11 @@ func run_server(lreader *logreader, port string) {
 //send log via tcp
 func send_log(fd net.Conn, lreader *logreader) {
 	defer fd.Close()
+	var err error
 	for {
 		msg := <-lreader.logchan
 		if msg != nil {
-			_, err := fd.Write(msg.Body)
+			_, err = fd.Write(msg.Body)
 		}
 		if err != nil {
 			fmt.Printf("TCP connect write error")

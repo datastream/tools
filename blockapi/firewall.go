@@ -25,13 +25,16 @@ func gen_protov1(configname string, rq *http.Request) string {
 	case "add":
 		{
 			req.iprequest.RequestType = REQUEST_TYPE_CREATE.Enum()
-			req.iprequest.Ipaddresses = get_ipaddresses(rq.FormValue("ip"))
-			req.iprequest.Timeout = proto.Int32(get_timeout(rq.FormValue("timeout")))
+			req.iprequest.Ipaddresses = get_ipaddresses(
+				rq.FormValue("ip"))
+			req.iprequest.Timeout = proto.Int32(
+				get_timeout(rq.FormValue("timeout")))
 		}
 	case "del":
 		{
 			req.iprequest.RequestType = REQUEST_TYPE_DELTE.Enum()
-			req.iprequest.Ipaddresses = get_ipaddresses(rq.FormValue("ip"))
+			req.iprequest.Ipaddresses = get_ipaddresses(
+				rq.FormValue("ip"))
 		}
 	case "clear":
 		{
@@ -45,13 +48,16 @@ func gen_protov1(configname string, rq *http.Request) string {
 	case "update":
 		{
 			req.iprequest.RequestType = REQUEST_TYPE_UPDATE.Enum()
-			req.iprequest.Ipaddresses = get_ipaddresses(rq.FormValue("ip"))
-			req.iprequest.Timeout = proto.Int32(get_timeout(rq.FormValue("timeout")))
+			req.iprequest.Ipaddresses = get_ipaddresses(
+				rq.FormValue("ip"))
+			req.iprequest.Timeout = proto.Int32(
+				get_timeout(rq.FormValue("timeout")))
 		}
 	case "stop":
 		{
 			req.iprequest.RequestType = REQUEST_TYPE_STOP.Enum()
-			req.iprequest.Timeout = proto.Int32(get_timeout(rq.FormValue("timeout")))
+			req.iprequest.Timeout = proto.Int32(
+				get_timeout(rq.FormValue("timeout")))
 		}
 	default:
 		{

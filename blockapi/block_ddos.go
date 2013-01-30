@@ -26,9 +26,11 @@ func NginxApi(w http.ResponseWriter, req *http.Request) {
 	pat := strings.Split(req.URL.Path, "/")
 	if req.Method != "POST" {
 		if pat[2] == "ip" {
-			req.Form, _ = url.ParseQuery("show_type=ip&show_list=all")
+			req.Form, _ = url.ParseQuery(
+				"show_type=ip&show_list=all")
 		} else {
-			req.Form, _ = url.ParseQuery("show_type=variable&show_list=all")
+			req.Form, _ = url.ParseQuery(
+				"show_type=variable&show_list=all")
 		}
 	}
 	rst := genrequest("/limit_interface_"+pat[2], pat[1], req.Form)

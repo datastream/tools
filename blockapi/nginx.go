@@ -33,7 +33,9 @@ func sendrequest(req chan *HttpRequest, rst chan string) {
 	client := &http.Client{}
 	cal := time.Time{}
 	timer := cal.UnixNano()
-	log.Println(reqinfo.url, "expire_time:", reqinfo.data["ban_expire"], "ban_list:", reqinfo.data["ban_list"])
+	log.Println(reqinfo.url, "expire_time:",
+		reqinfo.data["ban_expire"], "ban_list:",
+		reqinfo.data["ban_list"])
 	resp, err := client.PostForm(reqinfo.url, reqinfo.data)
 	if err != nil {
 		log.Println("connect timeout", err)
@@ -45,7 +47,9 @@ func sendrequest(req chan *HttpRequest, rst chan string) {
 		body, _ := ioutil.ReadAll(resp.Body)
 		resp.Body.Close()
 		timer = cal.UnixNano() - timer
-		rstbody := "----START----\n" + reqinfo.url + " completed at " + strconv.FormatFloat(float64(timer/1e9), 'f', 5, 64) + "\n" + string(body) + "\n----END----\n"
+		rstbody := "----START----\n" + reqinfo.url + " completed at " +
+			strconv.FormatFloat(float64(timer/1e9), 'f', 5, 64) +
+			"\n" + string(body) + "\n----END----\n"
 		rst <- rstbody
 	}
 }

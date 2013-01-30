@@ -12,7 +12,8 @@ import (
 )
 
 func check_iphash() {
-	output, err := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-L", *blockset).Output()
+	output, err := exec.Command("/usr/bin/sudo",
+		"/usr/sbin/ipset", "-L", *blockset).Output()
 	if err == nil {
 		buf := bytes.NewBuffer(output)
 		i := false
@@ -32,12 +33,14 @@ func check_iphash() {
 	}
 }
 func create_set(setname string) {
-	_, err := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-L", setname).Output()
+	_, err := exec.Command("/usr/bin/sudo",
+		"/usr/sbin/ipset", "-L", setname).Output()
 	if err == nil {
 		log.Println("setlist ", *blockset, " exist!")
 		return
 	}
-	cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-N", setname, "setlist")
+	cmd := exec.Command("/usr/bin/sudo",
+		"/usr/sbin/ipset", "-N", setname, "setlist")
 	if err = cmd.Run(); err != nil {
 		log.Println("ipset create setlist failed:", err)
 	}
@@ -55,15 +58,18 @@ func create_hash(name string) {
 		full = true
 		log.Println("setlist full, reuse ", hashname)
 	}
-	_, err := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-L", name).Output()
+	_, err := exec.Command("/usr/bin/sudo",
+		"/usr/sbin/ipset", "-L", name).Output()
 	if err == nil {
 		log.Println("iphash ", name, " exist!")
 		if full {
-			_, _ = exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-F", name).Output()
+			_, _ = exec.Command("/usr/bin/sudo",
+				"/usr/sbin/ipset", "-F", name).Output()
 		}
 		return
 	}
-	cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-N", name, "iphash")
+	cmd := exec.Command("/usr/bin/sudo",
+		"/usr/sbin/ipset", "-N", name, "iphash")
 	hashlist = append(hashlist, name)
 	if err := cmd.Run(); err != nil {
 		log.Println("ipset create iphash ", name, " failed:", err)
@@ -71,10 +77,13 @@ func create_hash(name string) {
 }
 
 func add_hashlist(hash string) {
-	_, err := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-D", *blockset, hash).Output()
-	cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-A", *blockset, hash)
+	_, err := exec.Command("/usr/bin/sudo",
+		"/usr/sbin/ipset", "-D", *blockset, hash).Output()
+	cmd := exec.Command("/usr/bin/sudo",
+		"/usr/sbin/ipset", "-A", *blockset, hash)
 	if err = cmd.Run(); err != nil {
-		log.Println("ipset add ", hash, " to ", *blockset, " setlist failed:", err)
+		log.Println("ipset add ", hash,
+			" to ", *blockset, " setlist failed:", err)
 	}
 }
 
@@ -83,12 +92,16 @@ func expire_ip(expire_chan chan *ipset, sleep_chan chan int32) {
 		select {
 		case item := <-expire_chan:
 			{
-				cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-D", item.set, item.ip)
+				cmd := exec.Command("/usr/bin/sudo",
+					"/usr/sbin/ipset", "-D",
+					item.set, item.ip)
 				err := cmd.Run()
 				if err != nil {
-					log.Println(item.set, ": ", item.ip, " auto delete error", err)
+					log.Println(item.set, ": ", item.ip,
+						" auto delete error", err)
 				} else {
-					log.Println("auto expire:", item.set, item.ip)
+					log.Println("auto expire:",
+						item.set, item.ip)
 				}
 			}
 		case i := <-sleep_chan:

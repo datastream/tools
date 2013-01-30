@@ -72,23 +72,32 @@ func run_command(req chan *Request, expire_chan chan *ipset, sleep_chan chan int
 		if rq == nil {
 			continue
 		}
-		if *rq.iprequest.RequestType == REQUEST_TYPE_CREATE {
-			go func() {
-				for i := range rq.iprequest.Ipaddresses {
-					if len(rq.iprequest.Ipaddresses[i]) < 7 {
+		go func() {
+			if *rq.iprequest.RequestType == REQUEST_TYPE_CREATE {
+				for _, addr := range rq.iprequest.Ipaddresses {
+					if len(addr) < 7 {
 						continue
 					}
-					cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-A", hashname, string(rq.iprequest.Ipaddresses[i]))
+					cmd := exec.Command("/usr/bin/sudo",
+						"/usr/sbin/ipset", "-A",
+						hashname, string(addr))
 					var output bytes.Buffer
 					cmd.Stderr = &output
 					err := cmd.Run()
 					if err != nil {
-						reg, e := regexp.Compile("set is full")
-						if e == nil && reg.MatchString(output.String()) {
-							log.Println("ipset ", hashname, " is full")
+						reg, e := regexp.
+							Compile("set is full")
+						if e == nil &&
+							reg.MatchString(
+								output.String()) {
+							log.Println("ipset ",
+								hashname,
+								" is full")
 							indexlock.Lock()
 							index++
-							hashname = basename + strconv.Itoa(index)
+							hashname = basename +
+								strconv.Itoa(
+									index)
 							create_hash(hashname)
 							indexlock.Unlock()
 							add_hashlist(hashname)
@@ -97,72 +106,80 @@ func run_command(req chan *Request, expire_chan chan *ipset, sleep_chan chan int
 						}
 					}
 					exp := &ipset{
-						ip:  string(rq.iprequest.Ipaddresses[i]),
+						ip:  string(addr),
 						set: hashname,
 					}
-					exp.timer = time.AfterFunc(time.Duration(*rq.iprequest.Timeout)*time.Second,
+					exp.timer = time.AfterFunc(
+						time.Duration(
+							*rq.iprequest.Timeout)*
+							time.Second,
 						func() { expire_chan <- exp })
 				}
-			}()
-		}
+			}
 
-		if *rq.iprequest.RequestType == REQUEST_TYPE_DELTE {
-			go func() {
-				for i := range rq.iprequest.Ipaddresses {
+			if *rq.iprequest.RequestType == REQUEST_TYPE_DELTE {
+				for _, addr := range rq.iprequest.Ipaddresses {
 					for l := range hashlist {
-						_, _ = exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-D", hashlist[l], string(rq.iprequest.Ipaddresses[i])).Output()
+						exec.Command("/usr/bin/sudo",
+							"/usr/sbin/ipset",
+							"-D", hashlist[l],
+							string(addr)).Output()
 					}
 				}
-			}()
-		}
+			}
 
-		if *rq.iprequest.RequestType == REQUEST_TYPE_UPDATE {
-			go func() {
-				for i := range rq.iprequest.Ipaddresses {
+			if *rq.iprequest.RequestType == REQUEST_TYPE_UPDATE {
+				for _, addr := range rq.iprequest.Ipaddresses {
 					for l := range hashlist {
-						_, _ = exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-D", hashlist[l], string(rq.iprequest.Ipaddresses[i])).Output()
+						exec.Command("/usr/bin/sudo",
+							"/usr/sbin/ipset",
+							"-D", hashlist[l],
+							string(addr)).Output()
 					}
 				}
-				rq.iprequest.RequestType = REQUEST_TYPE_CREATE.Enum()
+				rq.iprequest.RequestType =
+					REQUEST_TYPE_CREATE.Enum()
 				req <- rq
-			}()
-		}
-
-		if *rq.iprequest.RequestType == REQUEST_TYPE_READ {
-			go func() {
-				cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-L")
+			}
+			if *rq.iprequest.RequestType == REQUEST_TYPE_READ {
+				cmd := exec.Command("/usr/bin/sudo",
+					"/usr/sbin/ipset", "-L")
 				response := &Response{}
 				if out, err := cmd.Output(); err != nil {
 					log.Println("ipset list failed ")
-					response.StatCode = STATES_CODE_ERR.Enum()
+					response.StatCode =
+						STATES_CODE_ERR.Enum()
 					response.Msg = []byte("failed to list")
 				} else {
-					response.StatCode = STATES_CODE_OK.Enum()
+					response.StatCode =
+						STATES_CODE_OK.Enum()
 					response.Msg = out
 				}
 				rq.rsp <- response
-			}()
-		}
+			}
 
-		if *rq.iprequest.RequestType == REQUEST_TYPE_CLEAR {
-			go func() {
+			if *rq.iprequest.RequestType == REQUEST_TYPE_CLEAR {
 				for i := range hashlist {
-					cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-F", hashlist[i])
+					cmd := exec.Command("/usr/bin/sudo",
+						"/usr/sbin/ipset", "-F",
+						hashlist[i])
 					if _, err := cmd.Output(); err != nil {
-						log.Println("ipset clear failed")
+						log.Println(
+							"ipset clear failed")
 					} else {
 						log.Println("ipset cleared")
 					}
 				}
-			}()
-			hashname = basename
-			indexlock.Lock()
-			index = 0
-			indexlock.Unlock()
-		}
-		if *rq.iprequest.RequestType == REQUEST_TYPE_STOP {
-			go func() { sleep_chan <- *rq.iprequest.Timeout }()
-		}
+				hashname = basename
+				indexlock.Lock()
+				index = 0
+				indexlock.Unlock()
+			}
+
+			if *rq.iprequest.RequestType == REQUEST_TYPE_STOP {
+				sleep_chan <- *rq.iprequest.Timeout
+			}
+		}()
 	}
 }
 
@@ -204,7 +221,8 @@ func handle(fd net.Conn, req chan *Request) {
 			if err == io.EOF {
 				break
 			}
-			log.Println("read socket data failed", err, "read size:", size, "data_length:", data_length)
+			log.Println("read socket data failed", err,
+				"read size:", size, "data_length:", data_length)
 			break
 		}
 		index += size

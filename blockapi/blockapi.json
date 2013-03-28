@@ -1,0 +1,6 @@
+{
+    "lvs_bj": ["nsq_node/put?topic=hangzhounlvs"],
+    "lvs_bj_list": ["lvs2:1234/","lvs3:1234/"],
+    "hangzhou_ip":["127.0.0.1/limit_interface_ip", "126.1.1.1/asdasd"]
+    "hangzhou_ip_list":["127.0.0.1/limit_interface_ip", "126.1.1.1/asdasd"]
+}

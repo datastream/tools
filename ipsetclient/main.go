@@ -175,7 +175,6 @@ func run_command(req chan *Request, expire_chan chan *ipset, sleep_chan chan int
 				index = 0
 				indexlock.Unlock()
 			}
-
 			if *rq.iprequest.RequestType == REQUEST_TYPE_STOP {
 				sleep_chan <- *rq.iprequest.Timeout
 			}

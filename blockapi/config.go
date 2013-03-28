@@ -1,31 +1,21 @@
 package main
 
 import (
-	"bufio"
-	"io"
-	"log"
+	"encoding/json"
+	"io/ioutil"
 	"os"
-	"strings"
 )
 
-func read_config(name string) []string {
-	fd, err := os.Open("./" + name)
-	var lines []string
+func readconfig(file string) (map[string][]string, error) {
+	config_file, err := os.Open(file)
+	config, err := ioutil.ReadAll(config_file)
 	if err != nil {
-		log.Println("server list file open Error:", name)
-	} else {
-		f := bufio.NewReader(fd)
-		for {
-			line, err := f.ReadString('\n')
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				log.Println("file readline error")
-				break
-			}
-			lines = append(lines, strings.TrimSpace(line))
-		}
+		return nil, err
 	}
-	return lines
+	config_file.Close()
+	setting := make(map[string][]string)
+	if err := json.Unmarshal(config, &setting); err != nil {
+		return nil, err
+	}
+	return setting, nil
 }

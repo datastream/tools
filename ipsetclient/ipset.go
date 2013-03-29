@@ -126,6 +126,7 @@ func (this *IPSet) del_ip(ip string) {
 	this.iplock.Lock()
 	delete(this.iplist, ip)
 	this.iplock.Unlock()
+	log.Println("delete", ip)
 }
 func (this *IPSet) clear_ip() {
 	for _, h := range this.HashList {
@@ -138,6 +139,7 @@ func (this *IPSet) clear_ip() {
 		delete(this.iplist, k)
 	}
 	this.iplock.Unlock()
+	log.Println("clear ipset")
 }
 func (this *IPSet) update_ip(ip string, timeout int) {
 	if len(ip) < 7 {
@@ -153,6 +155,7 @@ func (this *IPSet) update_ip(ip string, timeout int) {
 	this.iplist[ip] = time.AfterFunc(time.Duration(timeout)*time.Second,
 		func() { this.expireChan <- ip })
 	this.iplock.Unlock()
+	log.Println("add", ip, "to", this.HashList[this.index])
 	cmd := exec.Command("/usr/bin/sudo",
 		"/usr/sbin/ipset",
 		"-A", this.HashList[this.index],
@@ -177,10 +180,17 @@ func (this *IPSet) update_ip(ip string, timeout int) {
 			}
 			this.Unlock()
 			this.update_ip(ip, timeout)
+		} else {
+			log.Println("add", ip, "to",
+				this.HashList[this.index], "failed")
+			this.iplock.Lock()
+			delete(this.iplist, ip)
+			this.iplock.Unlock()
 		}
 	}
 }
 func (this *IPSet) stop_expire(timeout int) {
+	log.Println("stop auto expire", timeout)
 	this.sleepChan <- timeout
 }
 func (this *IPSet) expire() {

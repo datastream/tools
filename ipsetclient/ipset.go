@@ -122,9 +122,11 @@ func (this *IPSet) del_ip(ip string) {
 			"-D", h,
 			ip).Output()
 	}
-	this.iplist[ip].Stop()
 	this.iplock.Lock()
-	delete(this.iplist, ip)
+	if _, ok := this.iplist[ip]; ok {
+		this.iplist[ip].Stop()
+		delete(this.iplist, ip)
+	}
 	this.iplock.Unlock()
 	log.Println("delete", ip)
 }

@@ -1,139 +1,187 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
+	"github.com/bitly/nsq/nsq"
 	"log"
-	"os"
+	"net/url"
 	"os/exec"
+	"regexp"
 	"strconv"
-	"strings"
 	"time"
 )
 
-func check_iphash() {
-	output, err := exec.Command("/usr/bin/sudo",
-		"/usr/sbin/ipset", "-L", *blockset).Output()
+func (this *IPSet) setup() {
+	this.setup_hashset()
+	this.setup_iphash()
+}
+
+func (this *IPSet) setup_hashset() error {
+	_, err := exec.Command("/usr/bin/sudo",
+		"/usr/sbin/ipset", "-L", this.HashSetName).Output()
 	if err == nil {
-		buf := bytes.NewBuffer(output)
-		i := false
-		for {
-			line, _ := buf.ReadString('\n')
-			if line[:len(line)-1] == "Members:" {
-				i = true
-				continue
-			}
-			if line[:len(line)-1] == "Bindings:" {
-				break
-			}
-			if i {
-				hashlist = append(hashlist, line[:len(line)-1])
+		log.Println("setlist ", this.HashSetName, " exist!")
+		return nil
+	}
+	cmd := exec.Command("/usr/bin/sudo",
+		"/usr/sbin/ipset", "-N", this.HashSetName, "setlist")
+	if err = cmd.Run(); err != nil {
+		log.Fatal("ipset create setlist failed:", err)
+	}
+	_, err = exec.Command("/usr/bin/sudo",
+		"/usr/sbin/ipset", "-F",
+		this.HashSetName).Output()
+	return err
+}
+
+func (this *IPSet) setup_iphash() {
+	this.HashList = this.HashList[:0]
+	for this.index = 0; this.index < this.maxsize; this.index++ {
+		name := this.HashName + strconv.Itoa(this.index)
+		this.HashList = append(this.HashList, name)
+		_, err := exec.Command("/usr/bin/sudo",
+			"/usr/sbin/ipset", "-L",
+			name).Output()
+		if err == nil {
+			log.Println("iphash ",
+				this.HashList[this.index], " exist!")
+		} else {
+			cmd := exec.Command("/usr/bin/sudo",
+				"/usr/sbin/ipset", "-N",
+				name, "iphash")
+			if err := cmd.Run(); err != nil {
+				log.Println("ipset create iphash ",
+					name, " failed:", err)
 			}
 		}
+		this.add_hashset(name)
 	}
 }
-func create_set(setname string) {
+
+func (this *IPSet) add_hashset(name string) {
 	_, err := exec.Command("/usr/bin/sudo",
-		"/usr/sbin/ipset", "-L", setname).Output()
-	if err == nil {
-		log.Println("setlist ", *blockset, " exist!")
+		"/usr/sbin/ipset", "-D", this.HashSetName, name).Output()
+	cmd := exec.Command("/usr/bin/sudo",
+		"/usr/sbin/ipset", "-A", this.HashSetName, name)
+	if err = cmd.Run(); err != nil {
+		log.Println("ipset add ", name,
+			" to ", this.HashSetName, " setlist failed:", err)
+	}
+}
+
+func (this *IPSet) HandleMessage(m *nsq.Message) error {
+	log.Println(string(m.Body))
+	req, e := url.ParseQuery(string(m.Body))
+	if e != nil {
+		log.Println("bad req", string(m.Body), e)
+		return nil
+	}
+	var action string
+	if len(req["action_type"]) > 0 {
+		action = req["action_type"][0]
+	}
+	var ipaddresses []string
+	if len(req["ip"]) > 0 {
+		ipaddresses = req["ip"]
+	}
+	var timeout int
+	if len(req["timeout"]) > 0 {
+		timeout, _ = strconv.Atoi(req["timeout"][0])
+	}
+	switch action {
+	case "add":
+		for _, ip := range ipaddresses {
+			go this.update_ip(ip, timeout)
+		}
+	case "del":
+		for _, ip := range ipaddresses {
+			go this.del_ip(ip)
+		}
+	case "clear":
+		go this.clear_ip()
+	case "list":
+	case "update":
+		for _, ip := range ipaddresses {
+			go this.update_ip(ip, timeout)
+		}
+	case "stop":
+		go this.stop_expire(timeout)
+	}
+	return nil
+}
+
+func (this *IPSet) del_ip(ip string) {
+	for _, h := range this.HashList {
+		exec.Command("/usr/bin/sudo",
+			"/usr/sbin/ipset",
+			"-D", h,
+			ip).Output()
+	}
+	this.iplist[ip].Stop()
+	this.iplock.Lock()
+	delete(this.iplist, ip)
+	this.iplock.Unlock()
+}
+func (this *IPSet) clear_ip() {
+	for _, h := range this.HashList {
+		exec.Command("/usr/bin/sudo",
+			"/usr/sbin/ipset",
+			"-F", h).Output()
+	}
+	this.iplock.Lock()
+	for k, _ := range this.iplist {
+		delete(this.iplist, k)
+	}
+	this.iplock.Unlock()
+}
+func (this *IPSet) update_ip(ip string, timeout int) {
+	this.iplock.Lock()
+	_, ok := this.iplist[ip]
+	this.iplock.Unlock()
+	if ok {
 		return
 	}
+	this.iplock.Lock()
+	this.iplist[ip] = time.AfterFunc(time.Duration(timeout)*time.Second,
+		func() { this.expireChan <- ip })
+	this.iplock.Unlock()
 	cmd := exec.Command("/usr/bin/sudo",
-		"/usr/sbin/ipset", "-N", setname, "setlist")
-	if err = cmd.Run(); err != nil {
-		log.Println("ipset create setlist failed:", err)
-	}
-}
-
-func create_hash(name string) {
-	check_iphash()
-	full := false
-	if len(hashlist) >= 8 {
-		if index > 7 {
-			index = 0
+		"/usr/sbin/ipset",
+		"-A", this.HashList[this.index],
+		ip)
+	var output bytes.Buffer
+	cmd.Stderr = &output
+	err := cmd.Run()
+	if err != nil {
+		reg, e := regexp.
+			Compile("set is full")
+		if e == nil &&
+			reg.MatchString(
+				output.String()) {
+			log.Println("ipset ",
+				this.HashList[this.index],
+				" is full")
+			this.Lock()
+			if this.index < this.maxsize {
+				this.index++
+			} else {
+				this.index = 0
+			}
+			this.Unlock()
+			this.update_ip(ip, timeout)
 		}
-		hashname = hashlist[index]
-		name = hashname
-		full = true
-		log.Println("setlist full, reuse ", hashname)
-	}
-	_, err := exec.Command("/usr/bin/sudo",
-		"/usr/sbin/ipset", "-L", name).Output()
-	if err == nil {
-		log.Println("iphash ", name, " exist!")
-		if full {
-			_, _ = exec.Command("/usr/bin/sudo",
-				"/usr/sbin/ipset", "-F", name).Output()
-		}
-		return
-	}
-	cmd := exec.Command("/usr/bin/sudo",
-		"/usr/sbin/ipset", "-N", name, "iphash")
-	hashlist = append(hashlist, name)
-	if err := cmd.Run(); err != nil {
-		log.Println("ipset create iphash ", name, " failed:", err)
 	}
 }
-
-func add_hashlist(hash string) {
-	_, err := exec.Command("/usr/bin/sudo",
-		"/usr/sbin/ipset", "-D", *blockset, hash).Output()
-	cmd := exec.Command("/usr/bin/sudo",
-		"/usr/sbin/ipset", "-A", *blockset, hash)
-	if err = cmd.Run(); err != nil {
-		log.Println("ipset add ", hash,
-			" to ", *blockset, " setlist failed:", err)
-	}
+func (this *IPSet) stop_expire(timeout int) {
+	this.sleepChan <- timeout
 }
-
-func expire_ip(expire_chan chan *ipset, sleep_chan chan int32) {
+func (this *IPSet) expire() {
 	for {
 		select {
-		case item := <-expire_chan:
-			{
-				cmd := exec.Command("/usr/bin/sudo",
-					"/usr/sbin/ipset", "-D",
-					item.set, item.ip)
-				err := cmd.Run()
-				if err != nil {
-					log.Println(item.set, ": ", item.ip,
-						" auto delete error", err)
-				} else {
-					log.Println("auto expire:",
-						item.set, item.ip)
-				}
-			}
-		case i := <-sleep_chan:
-			{
-				time.Sleep(time.Second * time.Duration(i))
-				log.Println("stop auto expire")
-			}
+		case ip := <-this.expireChan:
+			this.del_ip(ip)
+		case i := <-this.sleepChan:
+			time.Sleep(time.Second * time.Duration(i))
 		}
-	}
-}
-
-func read_speed(speed_chan chan uint64, sleep_chan chan int32) {
-	fd, err := os.Open("/sys/class/net/eth0/statistics/rx_bytes")
-	if err != nil {
-		log.Println("fail to read /sys/class/net/eth0/statistics/rx_bytes")
-		return
-	}
-	reader := bufio.NewReader(fd)
-	var line string
-	for {
-		fd.Seek(0, 0)
-		line, _ = reader.ReadString('\n')
-		stat1, _ := strconv.ParseUint(strings.TrimSpace(line), 10, 64)
-		time.Sleep(time.Second * 5)
-		fd.Seek(0, 0)
-		line, _ = reader.ReadString('\n')
-		stat2, _ := strconv.ParseUint(strings.TrimSpace(line), 10, 64)
-		speed := (stat2 - stat1) / 5 / 1024 / 1024
-		speed_chan <- speed
-		if int(speed) > *hardlimit {
-			sleep_chan <- int32(speed) * 6
-		}
-		time.Sleep(time.Second * 5)
 	}
 }

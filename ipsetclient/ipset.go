@@ -56,6 +56,7 @@ func (this *IPSet) setup_iphash() {
 		}
 		this.add_hashset(name)
 	}
+	this.index = 0
 }
 
 func (this *IPSet) add_hashset(name string) {

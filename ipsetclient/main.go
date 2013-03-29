@@ -51,6 +51,7 @@ func main() {
 		iplist:      make(map[string]*time.Timer),
 	}
 	ip_set.setup()
+	go ip_set.expire()
 	ddos_channel, err := os.Hostname()
 	if err != nil {
 		log.Fatal(err)

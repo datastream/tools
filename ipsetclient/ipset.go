@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -71,7 +72,6 @@ func (this *IPSet) add_hashset(name string) {
 }
 
 func (this *IPSet) HandleMessage(m *nsq.Message) error {
-	log.Println(string(m.Body))
 	req, e := url.ParseQuery(string(m.Body))
 	if e != nil {
 		log.Println("bad req", string(m.Body), e)
@@ -83,7 +83,11 @@ func (this *IPSet) HandleMessage(m *nsq.Message) error {
 	}
 	var ipaddresses []string
 	if len(req["ip"]) > 0 {
-		ipaddresses = req["ip"]
+		ips := req["ip"]
+		for _, v := range ips {
+			items := strings.Split(v, ",")
+			ipaddresses = append(ipaddresses, items...)
+		}
 	}
 	var timeout int
 	if len(req["timeout"]) > 0 {
@@ -136,6 +140,9 @@ func (this *IPSet) clear_ip() {
 	this.iplock.Unlock()
 }
 func (this *IPSet) update_ip(ip string, timeout int) {
+	if len(ip) < 7 {
+		return
+	}
 	this.iplock.Lock()
 	_, ok := this.iplist[ip]
 	this.iplock.Unlock()

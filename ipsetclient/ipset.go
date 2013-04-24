@@ -95,99 +95,86 @@ func (this *IPSet) HandleMessage(m *nsq.Message) error {
 	}
 	switch action {
 	case "add":
-		for _, ip := range ipaddresses {
-			go this.update_ip(ip, timeout)
-		}
+		go this.update_ip(ipaddresses, timeout)
+		log.Println("add", ipaddresses, timeout)
 	case "del":
-		for _, ip := range ipaddresses {
-			go this.del_ip(ip)
-		}
+		go this.del_ip(ipaddresses)
+		log.Println("del", ipaddresses)
 	case "clear":
 		go this.clear_ip()
 	case "list":
 	case "update":
-		for _, ip := range ipaddresses {
-			go this.update_ip(ip, timeout)
-		}
+		go this.update_ip(ipaddresses, timeout)
+		log.Println("update", ipaddresses)
 	case "stop":
 		go this.stop_expire(timeout)
 	}
 	return nil
 }
 
-func (this *IPSet) del_ip(ip string) {
-	for _, h := range this.HashList {
-		exec.Command("/usr/bin/sudo",
-			"/usr/sbin/ipset",
-			"-D", h,
-			ip).Output()
+func (this *IPSet) del_ip(ipaddresses []string) {
+	for _, ip := range ipaddresses {
+		for _, h := range this.HashList {
+			exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-D",
+				h, ip).Output()
+		}
+		this.iplock.Lock()
+		if _, ok := this.iplist[ip]; ok {
+			this.iplist[ip].Stop()
+			delete(this.iplist, ip)
+		}
+		this.iplock.Unlock()
 	}
-	this.iplock.Lock()
-	if _, ok := this.iplist[ip]; ok {
-		this.iplist[ip].Stop()
-		delete(this.iplist, ip)
-	}
-	this.iplock.Unlock()
-	log.Println("delete", ip)
 }
 func (this *IPSet) clear_ip() {
 	for _, h := range this.HashList {
-		exec.Command("/usr/bin/sudo",
-			"/usr/sbin/ipset",
-			"-F", h).Output()
+		exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-F", h).Output()
 	}
 	this.iplock.Lock()
 	for k, _ := range this.iplist {
 		delete(this.iplist, k)
 	}
 	this.iplock.Unlock()
-	log.Println("clear ipset")
 }
-func (this *IPSet) update_ip(ip string, timeout int) {
-	if len(ip) < 7 {
-		return
-	}
-	this.iplock.Lock()
-	_, ok := this.iplist[ip]
-	this.iplock.Unlock()
-	if ok {
-		return
-	}
-	this.iplock.Lock()
-	this.iplist[ip] = time.AfterFunc(time.Duration(timeout)*time.Second,
-		func() { this.expireChan <- ip })
-	this.iplock.Unlock()
-	log.Println("add", ip, "to", this.HashList[this.index])
-	cmd := exec.Command("/usr/bin/sudo",
-		"/usr/sbin/ipset",
-		"-A", this.HashList[this.index],
-		ip)
-	var output bytes.Buffer
-	cmd.Stderr = &output
-	err := cmd.Run()
-	if err != nil {
-		reg, e := regexp.
-			Compile("set is full")
-		if e == nil &&
-			reg.MatchString(
-				output.String()) {
-			log.Println("ipset ",
-				this.HashList[this.index],
-				" is full")
-			this.Lock()
-			if this.index < this.maxsize {
-				this.index++
+func (this *IPSet) update_ip(ipaddresses []string, timeout int) {
+	for _, ip := range ipaddresses {
+		if len(ip) < 7 {
+			return
+		}
+		this.iplock.Lock()
+		_, ok := this.iplist[ip]
+		this.iplock.Unlock()
+		if ok {
+			return
+		}
+		this.iplock.Lock()
+		this.iplist[ip] = time.AfterFunc(
+			time.Duration(timeout)*time.Second,
+			func() { this.expireChan <- ip })
+		this.iplock.Unlock()
+		cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset",
+			"-A", this.HashList[this.index], ip)
+		var output bytes.Buffer
+		cmd.Stderr = &output
+		err := cmd.Run()
+		if err != nil {
+			reg, e := regexp.Compile("set is full")
+			if e == nil && reg.MatchString(output.String()) {
+				log.Printf("ipset %s is full",
+					this.HashList[this.index])
+				this.Lock()
+				if this.index < this.maxsize {
+					this.index++
+				} else {
+					this.index = 0
+				}
+				this.Unlock()
+				this.update_ip([]string{ip}, timeout)
 			} else {
-				this.index = 0
+				this.iplock.Lock()
+				delete(this.iplist, ip)
+				this.iplock.Unlock()
 			}
-			this.Unlock()
-			this.update_ip(ip, timeout)
-		} else {
-			log.Println("add", ip, "to",
-				this.HashList[this.index], "failed")
-			this.iplock.Lock()
-			delete(this.iplist, ip)
-			this.iplock.Unlock()
 		}
 	}
 }
@@ -199,7 +186,7 @@ func (this *IPSet) expire() {
 	for {
 		select {
 		case ip := <-this.expireChan:
-			this.del_ip(ip)
+			this.del_ip([]string{ip})
 		case i := <-this.sleepChan:
 			time.Sleep(time.Second * time.Duration(i))
 		}

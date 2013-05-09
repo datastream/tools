@@ -102,12 +102,13 @@ func (this *IPSet) HandleMessage(m *nsq.Message) error {
 		log.Println("del", ipaddresses)
 	case "clear":
 		go this.clear_ip()
-	case "list":
 	case "update":
 		go this.update_ip(ipaddresses, timeout)
 		log.Println("update", ipaddresses)
 	case "stop":
 		go this.stop_expire(timeout)
+	default:
+		log.Println("ignore action:", action)
 	}
 	return nil
 }

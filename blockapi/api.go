@@ -58,7 +58,10 @@ func sendrequest(url string, data map[string][]string, rst chan string) {
 		if resp.StatusCode != 200 {
 			log.Printf("unsuccessfull return %s\n", resp.Status)
 		}
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			log.Println("read response",err)
+		}
 		resp.Body.Close()
 		timer = cal.UnixNano() - timer
 		rstbody := "----START----\n" + url + " completed at " +

@@ -33,7 +33,7 @@ func (this *IPSet) setup_iphash() {
 		name := this.HashName + strconv.Itoa(this.index)
 		this.HashList = append(this.HashList, name)
 		_, err := exec.Command("/usr/bin/sudo",
-			"/usr/sbin/ipset", "create", name, "hash:ip", "time 300 -exist").Output()
+			"/usr/sbin/ipset", "create", name, "hash:ip", "time", this.timeout, "-exist").Output()
 		if err != nil {
 			log.Fatal("ipset create iphash ", name, " failed:", err)
 		}
@@ -126,7 +126,7 @@ func (this *IPSet) update_ip(ipaddresses []string, timeout string) {
 		c := exec.Command("/usr/bin/sudo",
 			"/usr/sbin/ipset",
 			"add", hashname, ip,
-			"timeout ", timeout, "-exist")
+			"timeout", timeout, "-exist")
 		err := c.Run()
 		if ok {
 			continue

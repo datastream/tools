@@ -9,7 +9,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 )
 
 func (this *IPSet) setup() {
@@ -19,19 +18,12 @@ func (this *IPSet) setup() {
 
 func (this *IPSet) setup_hashset() error {
 	_, err := exec.Command("/usr/bin/sudo",
-		"/usr/sbin/ipset", "-L", this.HashSetName).Output()
-	if err == nil {
-		log.Println("setlist ", this.HashSetName, " exist!")
-		return nil
-	}
-	cmd := exec.Command("/usr/bin/sudo",
-		"/usr/sbin/ipset", "-N", this.HashSetName, "setlist")
-	if err = cmd.Run(); err != nil {
+		"/usr/sbin/ipset", "create", this.HashSetName, "list:set", "-exist").Output()
+	if err != nil {
 		log.Fatal("ipset create setlist failed:", err)
 	}
 	_, err = exec.Command("/usr/bin/sudo",
-		"/usr/sbin/ipset", "-F",
-		this.HashSetName).Output()
+		"/usr/sbin/ipset", "flush", this.HashSetName).Output()
 	return err
 }
 
@@ -41,19 +33,9 @@ func (this *IPSet) setup_iphash() {
 		name := this.HashName + strconv.Itoa(this.index)
 		this.HashList = append(this.HashList, name)
 		_, err := exec.Command("/usr/bin/sudo",
-			"/usr/sbin/ipset", "-L",
-			name).Output()
-		if err == nil {
-			log.Println("iphash ",
-				this.HashList[this.index], " exist!")
-		} else {
-			cmd := exec.Command("/usr/bin/sudo",
-				"/usr/sbin/ipset", "-N",
-				name, "iphash")
-			if err := cmd.Run(); err != nil {
-				log.Println("ipset create iphash ",
-					name, " failed:", err)
-			}
+			"/usr/sbin/ipset", "create", name, "hash:ip", "time 300 -exist").Output()
+		if err != nil {
+			log.Fatal("ipset create iphash ", name, " failed:", err)
 		}
 		this.add_hashset(name)
 	}
@@ -62,12 +44,9 @@ func (this *IPSet) setup_iphash() {
 
 func (this *IPSet) add_hashset(name string) {
 	_, err := exec.Command("/usr/bin/sudo",
-		"/usr/sbin/ipset", "-D", this.HashSetName, name).Output()
-	cmd := exec.Command("/usr/bin/sudo",
-		"/usr/sbin/ipset", "-A", this.HashSetName, name)
-	if err = cmd.Run(); err != nil {
-		log.Println("ipset add ", name,
-			" to ", this.HashSetName, " setlist failed:", err)
+		"/usr/sbin/ipset", "add", this.HashSetName, name, "-exist").Output()
+	if err != nil {
+		log.Fatal("ipset add ", name, " to ", this.HashSetName, " setlist failed:", err)
 	}
 }
 
@@ -89,9 +68,11 @@ func (this *IPSet) HandleMessage(m *nsq.Message) error {
 			ipaddresses = append(ipaddresses, items...)
 		}
 	}
-	var timeout int
+	var timeout string
 	if len(req["timeout"]) > 0 {
-		timeout, _ = strconv.Atoi(req["timeout"][0])
+		timeout = req["timeout"][0]
+	} else {
+		timeout = this.timeout
 	}
 	switch action {
 	case "add":
@@ -105,8 +86,6 @@ func (this *IPSet) HandleMessage(m *nsq.Message) error {
 	case "update":
 		go this.update_ip(ipaddresses, timeout)
 		log.Println("update", ipaddresses)
-	case "stop":
-		go this.stop_expire(timeout)
 	default:
 		log.Println("ignore action:", action)
 	}
@@ -115,54 +94,48 @@ func (this *IPSet) HandleMessage(m *nsq.Message) error {
 
 func (this *IPSet) del_ip(ipaddresses []string) {
 	for _, ip := range ipaddresses {
-		for _, h := range this.HashList {
-			exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-D",
-				h, ip).Output()
-		}
 		this.iplock.Lock()
-		if _, ok := this.iplist[ip]; ok {
-			this.iplist[ip].Stop()
-			delete(this.iplist, ip)
-		}
+		delete(this.ipList, ip)
 		this.iplock.Unlock()
+		for _, hashname := range this.HashList {
+			exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "del", hashname, ip).Output()
+		}
 	}
 }
 func (this *IPSet) clear_ip() {
 	for _, h := range this.HashList {
-		exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "-F", h).Output()
+		exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "flush", h).Output()
 	}
 	this.iplock.Lock()
-	for k, _ := range this.iplist {
-		delete(this.iplist, k)
+	defer this.iplock.Unlock()
+	for k, _ := range this.ipList {
+		delete(this.ipList, k)
 	}
-	this.iplock.Unlock()
 }
-func (this *IPSet) update_ip(ipaddresses []string, timeout int) {
+func (this *IPSet) update_ip(ipaddresses []string, timeout string) {
 	for _, ip := range ipaddresses {
 		if len(ip) < 7 {
 			return
 		}
 		this.iplock.Lock()
-		_, ok := this.iplist[ip]
+		hashname, ok := this.ipList[ip]
 		this.iplock.Unlock()
-		if ok {
-			return
+		if !ok {
+			hashname = this.HashList[this.index]
 		}
-		this.iplock.Lock()
-		this.iplist[ip] = time.AfterFunc(
-			time.Duration(timeout)*time.Second,
-			func() { this.expireChan <- ip })
-		this.iplock.Unlock()
-		cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset",
-			"-A", this.HashList[this.index], ip)
-		var output bytes.Buffer
-		cmd.Stderr = &output
-		err := cmd.Run()
+		c := exec.Command("/usr/bin/sudo",
+			"/usr/sbin/ipset",
+			"add", hashname, ip,
+			"timeout ", timeout, "-exist")
+		err := c.Run()
+		if ok {
+			continue
+		}
 		if err != nil {
+			var output bytes.Buffer
+			c.Stderr = &output
 			reg, e := regexp.Compile("set is full")
 			if e == nil && reg.MatchString(output.String()) {
-				log.Printf("ipset %s is full",
-					this.HashList[this.index])
 				this.Lock()
 				if this.index < this.maxsize {
 					this.index++
@@ -172,24 +145,12 @@ func (this *IPSet) update_ip(ipaddresses []string, timeout int) {
 				this.Unlock()
 				this.update_ip([]string{ip}, timeout)
 			} else {
-				this.iplock.Lock()
-				delete(this.iplist, ip)
-				this.iplock.Unlock()
+				log.Fatal("add ip failed", e)
 			}
-		}
-	}
-}
-func (this *IPSet) stop_expire(timeout int) {
-	log.Println("stop auto expire", timeout)
-	this.sleepChan <- timeout
-}
-func (this *IPSet) expire() {
-	for {
-		select {
-		case ip := <-this.expireChan:
-			this.del_ip([]string{ip})
-		case i := <-this.sleepChan:
-			time.Sleep(time.Second * time.Duration(i))
+		} else {
+			this.iplock.Lock()
+			this.ipList[ip] = hashname
+			this.iplock.Unlock()
 		}
 	}
 }

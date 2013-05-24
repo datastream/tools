@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
-	"time"
 )
 
 var (
@@ -26,11 +25,10 @@ type IPSet struct {
 	HashList    []string
 	index       int
 	maxsize     int
-	expireChan  chan string
-	sleepChan   chan int
 	ipreader    *nsq.Reader
-	iplist      map[string]*time.Timer
+	ipList      map[string]string
 	iplock      sync.Mutex
+	timeout     string
 	sync.Mutex
 }
 
@@ -46,12 +44,10 @@ func main() {
 		HashSetName: setting["hashsetname"],
 		index:       0,
 		maxsize:     8,
-		expireChan:  make(chan string),
-		sleepChan:   make(chan int),
-		iplist:      make(map[string]*time.Timer),
+		ipList:      make(map[string]string),
+		timeout:     setting["timeout"],
 	}
 	ip_set.setup()
-	go ip_set.expire()
 	ddos_channel, err := os.Hostname()
 	if err != nil {
 		log.Fatal(err)

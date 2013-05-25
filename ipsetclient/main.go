@@ -71,8 +71,7 @@ func main() {
 
 func showIP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=\"utf-8\"")
-	cmd := exec.Command("/usr/bin/sudo",
-		"/usr/sbin/ipset", "-L")
+	cmd := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "list")
 	if out, err := cmd.Output(); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 	} else {

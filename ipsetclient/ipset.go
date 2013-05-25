@@ -118,7 +118,7 @@ func (this *IPSet) update_ip(ipaddresses []string, timeout string) {
 		if err != nil {
 			var output bytes.Buffer
 			c.Stderr = &output
-			reg, e := regexp.Compile("set is full")
+			reg, e := regexp.Compile("is full")
 			if e == nil && reg.MatchString(output.String()) {
 				this.Lock()
 				if this.index < this.maxsize {

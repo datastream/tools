@@ -144,7 +144,8 @@ func (this *IPSet) update_ip(ipaddresses []string, timeout string) {
 				}
 				this.Unlock()
 				this.update_ip([]string{ip}, timeout)
-			} else {
+			}
+			if e != nil {
 				log.Fatal("add ip failed", e)
 			}
 		} else {

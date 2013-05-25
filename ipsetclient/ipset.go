@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"github.com/bitly/nsq/nsq"
 	"log"
 	"net/url"
@@ -110,16 +109,10 @@ func (this *IPSet) update_ip(ipaddresses []string, timeout string) {
 			return
 		}
 		hashname := this.HashList[this.index]
-		c := exec.Command("/usr/bin/sudo",
-			"/usr/sbin/ipset",
-			"add", hashname, ip,
-			"timeout", timeout, "-exist")
-		err := c.Run()
+		out, err := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "add", hashname, ip, "timeout", timeout, "-exist").CombinedOutput()
 		if err != nil {
-			var output bytes.Buffer
-			c.Stderr = &output
 			reg, e := regexp.Compile("is full")
-			if e == nil && reg.MatchString(output.String()) {
+			if e == nil && reg.MatchString(string(out)) {
 				this.Lock()
 				if this.index < this.maxsize {
 					this.index++

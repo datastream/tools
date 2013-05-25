@@ -14,6 +14,7 @@ func APIHandle(w http.ResponseWriter, r *http.Request) {
 	endpoint := mux.Vars(r)["endpoint"]
 	api := mux.Vars(r)["api"]
 	var item string
+	r.ParseForm()
 	if r.Method == "GET" {
 		if api == "ip" {
 			r.Form, _ = url.ParseQuery(

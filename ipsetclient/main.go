@@ -26,8 +26,6 @@ type IPSet struct {
 	index       int
 	maxsize     int
 	ipreader    *nsq.Reader
-	ipList      map[string]string
-	iplock      sync.Mutex
 	timeout     string
 	sync.Mutex
 }
@@ -44,7 +42,6 @@ func main() {
 		HashSetName: setting["hashsetname"],
 		index:       0,
 		maxsize:     8,
-		ipList:      make(map[string]string),
 		timeout:     setting["timeout"],
 	}
 	ip_set.setup()

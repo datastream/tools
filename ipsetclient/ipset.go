@@ -94,9 +94,6 @@ func (this *IPSet) HandleMessage(m *nsq.Message) error {
 
 func (this *IPSet) del_ip(ipaddresses []string) {
 	for _, ip := range ipaddresses {
-		this.iplock.Lock()
-		delete(this.ipList, ip)
-		this.iplock.Unlock()
 		for _, hashname := range this.HashList {
 			exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "del", hashname, ip).Output()
 		}
@@ -106,31 +103,18 @@ func (this *IPSet) clear_ip() {
 	for _, h := range this.HashList {
 		exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "flush", h).Output()
 	}
-	this.iplock.Lock()
-	defer this.iplock.Unlock()
-	for k, _ := range this.ipList {
-		delete(this.ipList, k)
-	}
 }
 func (this *IPSet) update_ip(ipaddresses []string, timeout string) {
 	for _, ip := range ipaddresses {
 		if len(ip) < 7 {
 			return
 		}
-		this.iplock.Lock()
-		hashname, ok := this.ipList[ip]
-		this.iplock.Unlock()
-		if !ok {
-			hashname = this.HashList[this.index]
-		}
+		hashname := this.HashList[this.index]
 		c := exec.Command("/usr/bin/sudo",
 			"/usr/sbin/ipset",
 			"add", hashname, ip,
 			"timeout", timeout, "-exist")
 		err := c.Run()
-		if ok {
-			continue
-		}
 		if err != nil {
 			var output bytes.Buffer
 			c.Stderr = &output
@@ -148,10 +132,6 @@ func (this *IPSet) update_ip(ipaddresses []string, timeout string) {
 			if e != nil {
 				log.Fatal("add ip failed", e)
 			}
-		} else {
-			this.iplock.Lock()
-			this.ipList[ip] = hashname
-			this.iplock.Unlock()
 		}
 	}
 }

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"github.com/gorilla/mux"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -34,8 +36,14 @@ func APIHandle(w http.ResponseWriter, r *http.Request) {
 	}
 	resp := make(chan string)
 	count := 0
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 	for _, h := range endpoints {
-		go sendrequest(h, r.Form, resp)
+		buf := bytes.NewBuffer(body)
+		go sendrequest(h, buf, resp)
 		count++
 	}
 	rst := ""
@@ -47,11 +55,11 @@ func APIHandle(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(rst))
 }
 
-func sendrequest(url string, data map[string][]string, rst chan string) {
+func sendrequest(url string, buf io.Reader, rst chan string) {
 	client := http.Client{}
 	cal := time.Time{}
 	timer := cal.UnixNano()
-	resp, err := client.PostForm(url, data)
+	resp, err := client.Post(url, "application/x-www-form-urlencoded", buf)
 	if err != nil {
 		log.Println("connect timeout", err)
 		rst <- "error to post" + url + "\n"
@@ -61,7 +69,7 @@ func sendrequest(url string, data map[string][]string, rst chan string) {
 		}
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			log.Println("read response",err)
+			log.Println("read response", err)
 		}
 		resp.Body.Close()
 		timer = cal.UnixNano() - timer

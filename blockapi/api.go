@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"net/url"
 	"strconv"
 	"time"
 )
@@ -16,17 +15,22 @@ func APIHandle(w http.ResponseWriter, r *http.Request) {
 	endpoint := mux.Vars(r)["endpoint"]
 	api := mux.Vars(r)["api"]
 	var item string
+	var body []byte
+	var err error
 	if r.Method == "GET" {
 		if api == "ip" {
-			r.Form, _ = url.ParseQuery(
-				"show_type=ip&show_list=all")
+			body = []byte("show_type=ip&show_list=all")
 		} else {
-			r.Form, _ = url.ParseQuery(
-				"show_type=variable&show_list=all")
+			body = []byte("show_type=variable&show_list=all")
 		}
 		item = endpoint + "_" + api + "_list"
 	} else {
 		item = endpoint + "_" + api
+		body, err = ioutil.ReadAll(r.Body)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 	}
 	endpoints, ok := setting[item]
 	if !ok {
@@ -35,11 +39,6 @@ func APIHandle(w http.ResponseWriter, r *http.Request) {
 	}
 	resp := make(chan string)
 	count := 0
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
 	for _, h := range endpoints {
 		buf := bytes.NewBuffer(body)
 		go sendrequest(h, buf, resp)

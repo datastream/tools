@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"sync"
 )
 
 var (
@@ -23,11 +22,9 @@ type IPSet struct {
 	HashSetName string
 	HashName    string
 	HashList    []string
-	index       int
 	maxsize     int
 	ipreader    *nsq.Reader
 	timeout     string
-	sync.Mutex
 }
 
 func main() {
@@ -40,7 +37,6 @@ func main() {
 	ip_set = &IPSet{
 		HashName:    setting["hashname"],
 		HashSetName: setting["hashsetname"],
-		index:       0,
 		maxsize:     8,
 		timeout:     setting["timeout"],
 	}

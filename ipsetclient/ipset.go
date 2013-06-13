@@ -28,8 +28,8 @@ func (this *IPSet) setup_hashset() error {
 
 func (this *IPSet) setup_iphash() {
 	this.HashList = this.HashList[:0]
-	for this.index = 0; this.index < this.maxsize; this.index++ {
-		name := this.HashName + strconv.Itoa(this.index)
+	for index := 0; index < this.maxsize; index++ {
+		name := this.HashName + strconv.Itoa(index)
 		this.HashList = append(this.HashList, name)
 		_, err := exec.Command("/usr/bin/sudo",
 			"/usr/sbin/ipset", "create", name, "hash:ip", "timeout", this.timeout, "-exist").Output()
@@ -38,7 +38,6 @@ func (this *IPSet) setup_iphash() {
 		}
 		this.add_hashset(name)
 	}
-	this.index = 0
 }
 
 func (this *IPSet) add_hashset(name string) {
@@ -108,23 +107,19 @@ func (this *IPSet) update_ip(ipaddresses []string, timeout string) {
 		if len(ip) < 7 {
 			return
 		}
-		hashname := this.HashList[this.index]
-		out, err := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "add", hashname, ip, "timeout", timeout, "-exist").CombinedOutput()
-		if err != nil {
-			reg, e := regexp.Compile("is full")
-			if e == nil && reg.MatchString(string(out)) {
-				this.Lock()
-				if this.index < this.maxsize {
-					this.index++
-				} else {
-					this.index = 0
+		for index := 0; index < this.maxsize; index ++ {
+			hashname := this.HashList[index]
+			out, err := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "add", hashname, ip, "timeout", timeout, "-exist").CombinedOutput()
+			if err != nil {
+				reg, e := regexp.Compile("is full")
+				if e == nil && reg.MatchString(string(out)) {
+					continue
 				}
-				this.Unlock()
-				this.update_ip([]string{ip}, timeout)
+				if e != nil {
+					log.Fatal("add ip failed", e)
+				}
 			}
-			if e != nil {
-				log.Fatal("add ip failed", e)
-			}
+			break
 		}
 	}
 }

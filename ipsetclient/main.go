@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	"github.com/bitly/nsq/nsq"
+	"github.com/bitly/go-nsq"
 	"log"
 	"net/http"
 	"os"
@@ -16,8 +16,9 @@ var (
 )
 
 var setting map[string]string
-var ip_set *IPSet
+var ipSet *IPSet
 
+// IPSet store info about ipset hash/list name
 type IPSet struct {
 	HashSetName string
 	HashName    string
@@ -34,23 +35,23 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	ip_set = &IPSet{
+	ipSet = &IPSet{
 		HashName:    setting["hashname"],
 		HashSetName: setting["hashsetname"],
 		maxsize:     8,
 		timeout:     setting["timeout"],
 	}
-	ip_set.setup()
-	ddos_channel, err := os.Hostname()
+	ipSet.setup()
+	ddosChannel, err := os.Hostname()
 	if err != nil {
 		log.Fatal(err)
 	}
-	ip_set.ipreader, err = nsq.NewReader(setting["topic"], ddos_channel)
-	ip_set.ipreader.AddHandler(ip_set)
+	ipSet.ipreader, err = nsq.NewReader(setting["topic"], ddosChannel)
+	ipSet.ipreader.AddHandler(ipSet)
 	lookupdlist := strings.Split(setting["lookupdaddresses"], ",")
 	for _, addr := range lookupdlist {
 		log.Printf("lookupd addr %s", addr)
-		err := ip_set.ipreader.ConnectToLookupd(addr)
+		err := ipSet.ipreader.ConnectToLookupd(addr)
 		if err != nil {
 			log.Fatal(err)
 		}

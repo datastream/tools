@@ -7,12 +7,12 @@ import (
 )
 
 func readconfig(file string) (map[string][]string, error) {
-	config_file, err := os.Open(file)
-	config, err := ioutil.ReadAll(config_file)
+	configFile, err := os.Open(file)
+	config, err := ioutil.ReadAll(configFile)
 	if err != nil {
 		return nil, err
 	}
-	config_file.Close()
+	configFile.Close()
 	setting := make(map[string][]string)
 	if err := json.Unmarshal(config, &setting); err != nil {
 		return nil, err

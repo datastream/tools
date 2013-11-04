@@ -11,6 +11,7 @@ import (
 	"time"
 )
 
+// APIHandle will route request to different endpoints
 func APIHandle(w http.ResponseWriter, r *http.Request) {
 	endpoint := mux.Vars(r)["endpoint"]
 	api := mux.Vars(r)["api"]

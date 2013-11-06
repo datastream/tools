@@ -112,14 +112,10 @@ func (s *IPSet) updateIP(ipaddresses []string, timeout string) {
 			hashname := s.HashList[index]
 			out, err := exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "add", hashname, ip, "timeout", timeout, "-exist").CombinedOutput()
 			if err != nil {
+				log.Println("add ip failed", out, err)
 				reg, e := regexp.Compile("is full")
 				if e == nil && reg.MatchString(string(out)) {
 					continue
-				} else {
-					log.Println(out)
-				}
-				if e != nil {
-					log.Fatal("add ip failed", e)
 				}
 			}
 			break

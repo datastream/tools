@@ -118,6 +118,15 @@ func (s *IPSet) updateIP(ipaddresses []string, timeout string) {
 					continue
 				}
 			}
+			out, err = exec.Command("/usr/bin/sudo", "/usr/sbin/ipset", "test", hashname, ip).CombinedOutput()
+			if err == nil {
+				reg, e := regexp.Compile("NOT")
+				if e == nil && reg.MatchString(string(out)) {
+					continue
+				}
+			} else {
+				log.Println("test ip failed", out, err)
+			}
 			break
 		}
 	}

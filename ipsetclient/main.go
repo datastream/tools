@@ -24,7 +24,6 @@ type IPSet struct {
 	HashName    string
 	HashList    []string
 	maxsize     int
-	ipreader    *nsq.Reader
 	timeout     string
 }
 
@@ -46,15 +45,21 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	ipSet.ipreader, err = nsq.NewReader(setting["topic"], ddosChannel)
-	ipSet.ipreader.AddHandler(ipSet)
-	lookupdlist := strings.Split(setting["lookupdaddresses"], ",")
-	for _, addr := range lookupdlist {
-		log.Printf("lookupd addr %s", addr)
-		err := ipSet.ipreader.ConnectToLookupd(addr)
+	topics := strings.Split(setting["topics"], ",")
+	cfg := nsq.NewConfig()
+	var ipSetTasks []*nsq.Consumer
+	for _, topic := range topics {
+		consumer, err := nsq.NewConsumer(topic, ddosChannel, cfg)
+		consumer.AddHandler(ipSet)
+		lookupdlist := strings.Split(setting["lookupdaddresses"], ",")
+		err = consumer.ConnectToNSQLookupds(lookupdlist)
 		if err != nil {
 			log.Fatal(err)
 		}
+		ipSetTasks = append(ipSetTasks, consumer)
+	}
+	for _, consumer := range ipSetTasks {
+		defer consumer.Stop()
 	}
 	http.HandleFunc("/", showIP)
 	err = http.ListenAndServe(*bind, nil)

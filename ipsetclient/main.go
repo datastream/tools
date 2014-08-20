@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"github.com/bitly/go-nsq"
 	"log"
 	"net/http"
@@ -47,6 +48,8 @@ func main() {
 	}
 	topics := strings.Split(setting["topics"], ",")
 	cfg := nsq.NewConfig()
+	hostname, err := os.Hostname()
+	cfg.Set("user_agent", fmt.Sprintf("ipsetclient/%s", hostname))
 	var ipSetTasks []*nsq.Consumer
 	for _, topic := range topics {
 		consumer, err := nsq.NewConsumer(topic, ddosChannel, cfg)

@@ -9,6 +9,8 @@ import (
 func main() {
 	ticker := time.Tick(time.Minute * 30)
 	ticker2 := time.Tick(time.Hour * 24)
+	out, err := exec.Command("/etc/init.d/ssh", "start").Output()
+	fmt.Print(out, err)
 	for {
 		select {
 		case <-ticker2:

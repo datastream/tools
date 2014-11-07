@@ -17,6 +17,7 @@ type CollectdJSON struct {
 	Type           string    `json:"type"`
 	TypeInstance   string    `json:"type_instance"`
 }
+
 func (c *CollectdJSON) GetName() string {
 	return c.Plugin
 }

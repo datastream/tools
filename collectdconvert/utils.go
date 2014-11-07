@@ -1,5 +1,9 @@
 package main
 
+import (
+	"code.google.com/p/goprotobuf/proto"
+)
+
 // MetricData
 type Metric struct {
 	Name          string

@@ -1,8 +1,10 @@
 package main
 
 import (
-	"flag"
-	"log"
+	"encoding/json"
+	"fmt"
+	"github.com/gorilla/mux"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -16,21 +18,20 @@ func main() {
 	termchan := make(chan os.Signal, 1)
 	signal.Notify(termchan, syscall.SIGINT, syscall.SIGTERM)
 	<-termchan
-	w.Stop()
 }
 
 type WebService struct {
 	ListenAddress string
 }
 
-func (q *WebService) Run() error {
-	fs := memfs.New()
-	q.LevelDB, err := Open("", &db.Options{
-		FileSystem: fs,
-	})
-	if err == nil {
-		fmt.Println("type=convert,stat=2,msg=leveldb error")
-	}
+func (q *WebService) Run() {
+	//	fs := memfs.New()
+	//	q.LevelDB, err := Open("", &db.Options{
+	//		FileSystem: fs,
+	//	})
+	//	if err == nil {
+	//		fmt.Println("type=convert,stat=2,msg=leveldb error")
+	//	}
 	r := mux.NewRouter()
 	s := r.PathPrefix("/api/v1").Subrouter()
 	s.HandleFunc("/collect", q.Collectd).
@@ -38,7 +39,7 @@ func (q *WebService) Run() error {
 		Headers("Content-Type", "application/json")
 	http.Handle("/", r)
 	http.ListenAndServe(q.ListenAddress, nil)
-	defer db.Close()
+	//defer db.Close()
 }
 
 func (q *WebService) Collectd(w http.ResponseWriter, r *http.Request) {
@@ -53,10 +54,10 @@ func (q *WebService) Collectd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, c := range dataset {
-		msgHeader := fmt.Sprintf("==%s\n",c.Type)
+		msgHeader := fmt.Sprintf("==%s\n", c.Type)
 		var msg string
 		for i := range c.Values {
-			if len(msg) >0 {
+			if len(msg) > 0 {
 				msg += ","
 			}
 			//rawValue, err := q.LevelDB.Get([]byte(key),nil)
@@ -64,7 +65,7 @@ func (q *WebService) Collectd(w http.ResponseWriter, r *http.Request) {
 			//var nValue float64
 			if err == nil {
 				//nValue = c.GetMetricRate(keyValue.Value, keyValue.Timestamp, i)
-				msg += fmt.Sprintf("%s=%.2f",c.DataSetTypes, c.Values[i])
+				msg += fmt.Sprintf("%s=%.2f", c.DataSetTypes, c.Values[i])
 			}
 			if err != nil {
 				fmt.Println("type=covert,state=2,msg=leveldb get error", err)
@@ -73,6 +74,6 @@ func (q *WebService) Collectd(w http.ResponseWriter, r *http.Request) {
 			}
 			//t := int64(c.Timestamp)
 		}
-		fmt.Println(msgHeader, msg)
+		fmt.Println(msgHeader+msg)
 	}
 }

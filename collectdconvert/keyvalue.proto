@@ -1,0 +1,6 @@
+package main;
+
+message KeyValue {
+  optional sfixed64 timestamp = 1;
+  optional double value = 2;
+}

@@ -38,10 +38,6 @@ var headers stringsFlag
 func main() {
 	flag.Var(&headers, "H", "request Headers")
 	flag.Parse()
-	if flag.NFlag() == 0 {
-		flag.PrintDefaults()
-		return
-	}
 	S4setting, err := ReadConfig(*config)
 	var s *sign4.Signature
 	s = nil
@@ -64,6 +60,11 @@ func main() {
 		bodyReader = bytes.NewBufferString(*reqBodyString)
 	}
 	args := flag.Args()
+	if len(args) == 0 {
+		fmt.Println("Useage: s4curl http://example.org")
+		flag.PrintDefaults()
+		return
+	}
 	url := args[len(args)-1]
 	req, _ := http.NewRequest(*reqMethod, url, bodyReader)
 	req.Header.Add("date", time.Now().Format("Mon, 09 Sep 2011 23:36:00 GMT"))

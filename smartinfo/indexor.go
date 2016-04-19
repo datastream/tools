@@ -95,27 +95,24 @@ func (m *Builder) writeLoop() {
 			t := dataset["Checktime"].(string)
 			timestamp := time.Now()
 			for k, v := range dataset {
-				if k[:9] == "Enclosure" {
-					tags := make(map[string]string)
-					fields := make(map[string]interface{})
+				tags := make(map[string]string)
+				fields := make(map[string]interface{})
+				if diskinfo, ok := v.(map[string]interface{}); ok {
 					tags["Hostname"] = hostname
 					tags["Postion"] = k
 					tags["Checktime"] = t
-					if diskinfo, ok := v.(map[string]interface{}); ok {
-						for dk, dv := range diskinfo {
-							if value, ok := dv.(string); ok {
-								tags[dk] = value
-							} else {
-								fields[dk] = dv
-							}
+					for dk, dv := range diskinfo {
+						if value, ok := dv.(string); ok {
+							tags[dk] = value
+						} else {
+							fields[dk] = dv
 						}
 					}
-					var pt *client.Point
-					pt, err = client.NewPoint("diskstat", tags, fields, timestamp)
-					if err == nil {
-						bp.AddPoint(pt)
-					}
-
+				}
+				var pt *client.Point
+				pt, err = client.NewPoint("diskstat", tags, fields, timestamp)
+				if err == nil {
+					bp.AddPoint(pt)
 				}
 			}
 			if err == nil {

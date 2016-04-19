@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	confFile = flag.String("c", "netstreamtonsq.json", "syslog2nsq config file")
+	confFile = flag.String("c", "diskinfo.json", "syslog2nsq config file")
 )
 
 func main() {
@@ -25,7 +25,7 @@ func main() {
 		exitChannel: make(chan int),
 	}
 	if err = m.Run(); err != nil {
-		log.Fatal("elastic search builder failed", err)
+		log.Fatal("init diskinfo failed", err)
 	}
 	termchan := make(chan os.Signal, 1)
 	signal.Notify(termchan, syscall.SIGINT, syscall.SIGTERM)

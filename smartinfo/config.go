@@ -12,10 +12,10 @@ type Setting struct {
 	LookupdAddresses []string `jpath:"lookupd_addresses"`
 	Topic            string   `jpath:"topic"`
 	Channel          string   `jpath:"channel"`
-	InfluxdbAddress  string   `json:"influxdb_address"`
-	InfluxdbUser     string   `json:"influxdb_user"`
-	InfluxdbPassword string   `json:"influxdb_password"`
-	InfluxdbDatabase string   `json:"influxdb_database"`
+	InfluxdbAddress  string   `jpath:"influxdb_address"`
+	InfluxdbUser     string   `jpath:"influxdb_user"`
+	InfluxdbPassword string   `jpath:"influxdb_password"`
+	InfluxdbDatabase string   `jpath:"influxdb_database"`
 	MaxInFlight      int      `jpath:"maxinflight"`
 }
 

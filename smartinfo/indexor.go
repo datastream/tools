@@ -35,6 +35,8 @@ func (m *Builder) Run() error {
 		MaxConcurrentRequests: 1000,
 		ErrorPercentThreshold: 25,
 	})
+	go m.writeLoop()
+	m.consumer.AddConcurrentHandlers(m, m.MaxInFlight)
 	err = m.consumer.ConnectToNSQLookupds(m.LookupdAddresses)
 	if err != nil {
 		return err
@@ -91,21 +93,23 @@ func (m *Builder) writeLoop() {
 			}
 			hostname := dataset["Hostname"].(string)
 			t := dataset["Checktime"].(string)
-			timestamp, err := time.Parse("2016-04-20 00:02:42", t)
-			log.Println(timestamp)
+			timestamp := time.Now()
 			for k, v := range dataset {
 				if k[:9] == "Enclosure" {
-					var smartInfo SmartInfo
-					err = json.Unmarshal(v.([]byte), &smartInfo)
-					if err != nil {
-						log.Println("wrong data struct:", v)
-						err = nil
-						continue
+					tags := make(map[string]string)
+					fields := make(map[string]interface{})
+					tags["Hostname"] = hostname
+					tags["Postion"] = k
+					tags["Checktime"] = t
+					if diskinfo, ok := v.(map[string]interface{}); ok {
+						for dk, dv := range diskinfo {
+							if value, ok := dv.(string); ok {
+								tags[dk] = value
+							} else {
+								fields[dk] = dv
+							}
+						}
 					}
-					smartInfo.Hostname = hostname
-					smartInfo.Postion = k
-					tags := smartInfo.GetTags()
-					fields := smartInfo.GetFields()
 					var pt *client.Point
 					pt, err = client.NewPoint("diskstat", tags, fields, timestamp)
 					if err == nil {

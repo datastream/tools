@@ -1,10 +1,13 @@
 package main
 
 import (
+	"github.com/syndtr/goleveldb/leveldb"
+	"github.com/syndtr/goleveldb/leveldb/util"
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
 	"net/http"
+	"time"
 	"os"
 	"os/signal"
 	"syscall"
@@ -22,16 +25,16 @@ func main() {
 
 type WebService struct {
 	ListenAddress string
+	LevelDB       *leveldb.DB
 }
 
 func (q *WebService) Run() {
-	//	fs := memfs.New()
-	//	q.LevelDB, err := Open("", &db.Options{
-	//		FileSystem: fs,
-	//	})
-	//	if err == nil {
-	//		fmt.Println("type=convert,stat=2,msg=leveldb error")
-	//	}
+	var err error
+	q.LevelDB, err = leveldb.OpenFile("", nil)
+	if err == nil {
+		fmt.Println("type=convert,stat=2,msg=leveldb error")
+	}
+	go q.PeriodTask()
 	r := mux.NewRouter()
 	s := r.PathPrefix("/api/v1").Subrouter()
 	s.HandleFunc("/collect", q.Collectd).
@@ -39,7 +42,7 @@ func (q *WebService) Run() {
 		Headers("Content-Type", "application/json")
 	http.Handle("/", r)
 	http.ListenAndServe(q.ListenAddress, nil)
-	//defer db.Close()
+	defer q.LevelDB.Close()
 }
 
 func (q *WebService) Collectd(w http.ResponseWriter, r *http.Request) {
@@ -54,26 +57,52 @@ func (q *WebService) Collectd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, c := range dataset {
-		msgHeader := fmt.Sprintf("==%s\n", c.Type)
-		var msg string
 		for i := range c.Values {
-			if len(msg) > 0 {
-				msg += ","
+			key := c.GetMetricName(i)
+			rawValue, err := q.LevelDB.Get([]byte(key), nil)
+			data, err := KeyValueEncode(int64(c.Timestamp), c.Values[i])
+			if err == leveldb.ErrNotFound {
+				q.LevelDB.Put([]byte(key), data, nil)
+				return
 			}
-			//rawValue, err := q.LevelDB.Get([]byte(key),nil)
-			//keyValue, err := KeyValueDecode(rawValue)
-			//var nValue float64
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			keyValue, err := KeyValueDecode(rawValue)
+			var nValue float64
 			if err == nil {
-				//nValue = c.GetMetricRate(keyValue.Value, keyValue.Timestamp, i)
-				msg += fmt.Sprintf("%s=%.2f", c.DataSetTypes, c.Values[i])
+				nValue = c.GetMetricRate(keyValue.GetValue(), keyValue.GetTimestamp(), i)
+				q.LevelDB.Put([]byte("rate"+key), []byte(fmt.Sprintf("%f", nValue)), nil)
+				q.LevelDB.Put([]byte(key), data, nil)
 			}
 			if err != nil {
 				fmt.Println("type=covert,state=2,msg=leveldb get error", err)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			//t := int64(c.Timestamp)
 		}
-		fmt.Println(msgHeader+msg)
 	}
+}
+
+func (q *WebService) PeriodTask() {
+	ticker := time.Tick(time.Minute)
+	for {
+		<-ticker
+		go q.GetCPU()
+		//go q.GetMem()
+		//go q.GetLoad()
+		//go q.GetNet()
+		//go q.GetSwap()
+		//go q.GetDisk()
+	}
+}
+
+func (q *WebService) GetCPU() {
+	iter := q.LevelDB.NewIterator(util.BytesPrefix([]byte("cpu")), nil)
+	for iter.Next() {
+		// Use key/value.
+	}
+	iter.Release()
+	iter.Error()
 }

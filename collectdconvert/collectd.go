@@ -23,7 +23,7 @@ func (c *CollectdJSON) GetName() string {
 }
 
 func (c *CollectdJSON) GetMetricName(index int) string {
-	metricName := c.Host + "_" + c.Plugin
+	metricName := c.Plugin
 	if len(c.PluginInstance) > 0 {
 		if matched, _ := regexp.MatchString(`^\d+$`, c.PluginInstance); matched {
 			metricName += c.PluginInstance

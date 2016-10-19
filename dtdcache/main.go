@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 )
 
 var (
@@ -25,7 +26,11 @@ func main() {
 func DownloadDtD(c *gin.Context) {
 	c.Header("Content-Type", "text/xml; charset=\"utf-8\"")
 	url := c.Request.URL.RequestURI()[1:]
-	resp, err := http.Get(fmt.Sprintf("http://%s", url))
+	timeout := time.Duration(5 * time.Second)
+	client := http.Client{
+		Timeout: timeout,
+	}
+	resp, err := client.Get(fmt.Sprintf("http://%s", url))
 	if resp.StatusCode != 200 {
 		c.String(http.StatusServiceUnavailable, "fail to reach baclend")
 	}

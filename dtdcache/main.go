@@ -33,12 +33,17 @@ func DownloadDtD(c *gin.Context) {
 	resp, err := client.Get(fmt.Sprintf("http://%s", url))
 	if resp.StatusCode != 200 {
 		c.String(http.StatusServiceUnavailable, "fail to reach baclend")
+		return
 	}
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		c.String(http.StatusInternalServerError, "fail to read body")
 	}
 	defer resp.Body.Close()
+	if len(body) == 0 {
+		c.String(http.StatusServiceUnavailable, "fail to read body")
+		return
+	}
 	c.Header("Cache-Control", "max-age=436800")
 	c.String(http.StatusOK, string(body))
 	filePath := fmt.Sprintf("%s%s", *cachePath, c.Request.URL.Path)

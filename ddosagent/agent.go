@@ -43,6 +43,9 @@ func (m *DDoSAgent) Run() {
 	m.APITasks = make(map[string]*APITask)
 	ticker := time.Tick(time.Second * 600)
 	items := strings.Split(m.Setting["listen_addr"], ":")
+	if len(items) < 2 {
+		log.Fatal("bad listen_addr value")
+	}
 	var err error
 	m.Port, err = strconv.Atoi(items[len(items)-1])
 	if err != nil {
@@ -50,7 +53,7 @@ func (m *DDoSAgent) Run() {
 	}
 	m.HostName, err = os.Hostname()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("get hostname failed", err)
 	}
 	config := api.DefaultConfig()
 	config.Address = m.Setting["consul_address"]

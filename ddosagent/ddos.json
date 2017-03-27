@@ -1,0 +1,8 @@
+{
+    "consul_address":"127.0.0.1:8500",
+    "datacenter":"dc1",
+    "consul_token":"asdasda",
+    "cluster":"ddosa",
+    "lookupdaddresses":"127.0.0.1:4161",
+    "timeout":"300"
+}

@@ -16,7 +16,6 @@ type DDoSAgent struct {
 	client           *api.Client
 	HostName         string
 	Setting          map[string]string
-	Port             int
 	LookupdAddresses []string
 	exitChan         chan int
 }
@@ -35,15 +34,7 @@ func (m *DDoSAgent) Run() {
 	m.IPSets = make(map[string]*IPSet)
 	m.APITasks = make(map[string]*APITask)
 	ticker := time.Tick(time.Second * 600)
-	items := strings.Split(m.Setting["listen_addr"], ":")
-	if len(items) < 2 {
-		log.Fatal("bad listen_addr value")
-	}
 	var err error
-	m.Port, err = strconv.Atoi(items[len(items)-1])
-	if err != nil {
-		log.Fatal("get listen port failed")
-	}
 	m.HostName, err = os.Hostname()
 	if err != nil {
 		log.Fatal("get hostname failed", err)

@@ -1,15 +1,10 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"github.com/hashicorp/consul/api"
-	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -167,56 +162,4 @@ func (m *DDoSAgent) ReadConfigFromConsul(key string) (map[string]string, error) 
 		}
 	}
 	return consulSetting, err
-}
-
-func (m *DDoSAgent) showIPSet(c *gin.Context) {
-	c.Header("Content-Type", "application/json; charset=\"utf-8\"")
-	c.Header("Access-Control-Allow-Methods", "GET")
-	ipset := "/usr/sbin/ipset"
-	if _, err := os.Stat(ipset); os.IsNotExist(err) {
-		ipset = "/sbin/ipset"
-	}
-	if _, err := os.Stat(ipset); os.IsNotExist(err) {
-		c.String(http.StatusInternalServerError, "ipset not found")
-		return
-	}
-	cmd := exec.Command("/usr/bin/sudo", ipset, "list")
-	if out, err := cmd.Output(); err != nil {
-		c.String(http.StatusInternalServerError, "ipset list error")
-	} else {
-		c.String(http.StatusOK, string(out))
-	}
-}
-
-func (m *DDoSAgent) showNginx(c *gin.Context) {
-	c.Header("Content-Type", "application/json; charset=\"utf-8\"")
-	c.Header("Access-Control-Allow-Methods", "GET")
-	topic := c.Param("topic")
-	apitask := m.APITasks[topic]
-	if apitask == nil {
-		c.String(http.StatusNotFound, "bad topic")
-		return
-	}
-	var body []byte
-	if strings.Contains(topic, "ip") {
-		body = []byte("show_type=ip&show_list=all")
-	} else {
-		body = []byte("show_type=variable&show_list=all")
-	}
-	buf := bytes.NewBuffer(body)
-	resp, err := apitask.client.Post(apitask.EndPoint, "application/x-www-form-urlencoded", buf)
-	if err != nil {
-		log.Println("connect timeout", err)
-		c.String(http.StatusOK, "error to post"+apitask.EndPoint)
-	} else {
-		if resp.StatusCode != 200 {
-			log.Printf("unsuccessfull return %s\n", resp.Status)
-		}
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			log.Println("read response", err)
-		}
-		resp.Body.Close()
-		c.String(http.StatusOK, string(body))
-	}
 }

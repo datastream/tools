@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/hashicorp/consul/api"
 	"github.com/nsqio/go-nsq"
 	"log"
 	"net/url"
@@ -13,6 +14,7 @@ import (
 )
 
 type IPSet struct {
+	ClusterName      string
 	Topic            string
 	HashSetName      string
 	HashName         string
@@ -22,6 +24,8 @@ type IPSet struct {
 	ipset            string
 	LookupdAddresses []string
 	consumer         *nsq.Consumer
+	nodeName         string
+	agent            *DDoSAgent
 }
 
 func (s *IPSet) Run() error {
@@ -35,6 +39,7 @@ func (s *IPSet) Run() error {
 	}
 	cfg := nsq.NewConfig()
 	cfg.Set("user_agent", fmt.Sprintf("ddosAgent/%s", hostname))
+	s.nodeName = hostname
 	s.consumer, err = nsq.NewConsumer(s.Topic, hostname, cfg)
 	s.consumer.AddHandler(s)
 	err = s.consumer.ConnectToNSQLookupds(s.LookupdAddresses)
@@ -130,6 +135,18 @@ func (s *IPSet) HandleMessage(m *nsq.Message) error {
 		log.Println("update", ipaddresses)
 	default:
 		log.Println("ignore action:", action)
+	}
+	ipset := "/usr/sbin/ipset"
+	if _, err := os.Stat(ipset); os.IsNotExist(err) {
+		ipset = "/sbin/ipset"
+	}
+	cmd := exec.Command("/usr/bin/sudo", ipset, "list")
+	if out, err := cmd.Output(); err != nil {
+		kv := &api.KVPair{Key: fmt.Sprintf("%s/status/nginx/%s/%s", s.ClusterName, s.Topic, s.nodeName), Value: out}
+		_, err = s.agent.client.KV().Put(kv, nil)
+		if err != nil {
+			return fmt.Errorf("write consul failed")
+		}
 	}
 	return nil
 }

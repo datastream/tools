@@ -7,7 +7,6 @@ import (
 	"github.com/hashicorp/consul/api"
 	"io/ioutil"
 	"log"
-	"math/rand"
 	"net/http"
 	"os"
 	"os/exec"
@@ -20,7 +19,6 @@ type DDoSAgent struct {
 	IPSets           map[string]*IPSet
 	APITasks         map[string]*APITask
 	client           *api.Client
-	agent            *api.Agent
 	HostName         string
 	Setting          map[string]string
 	Port             int
@@ -63,11 +61,6 @@ func (m *DDoSAgent) Run() {
 	if err != nil {
 		fmt.Println("reload consul setting failed", err)
 	}
-	m.agent = &api.Agent{}
-	err = m.agent.Join(m.Setting["consul_address"], false)
-	if err != nil {
-		fmt.Println("join consul agent failed", err)
-	}
 	err = m.ReadIPSetConfig()
 	if err != nil {
 		fmt.Println("reload consul setting failed", err)
@@ -106,13 +99,14 @@ func (m *DDoSAgent) ReadIPSetConfig() error {
 				ipset := &IPSet{}
 				ipset.Topic = k
 				ipset.HashSetName = newConf[k]
+				ipset.ClusterName = m.Setting["cluster"]
 				ipset.HashName = fmt.Sprintf("%shash", newConf[k])
 				ipset.Timeout = m.Setting["timeout"]
 				ipset.MaxSize, _ = strconv.Atoi(m.Setting["max_size"])
 				ipset.LookupdAddresses = strings.Split(m.Setting["lookupd_addresses"], ",")
+				ipset.agent = m
 				m.IPSets[k] = ipset
 				go ipset.Run()
-				m.RegisterService("ipset", k)
 			}
 		}
 	}
@@ -140,10 +134,11 @@ func (m *DDoSAgent) ReadAPIConfig() error {
 				apitask := &APITask{}
 				apitask.Topic = k
 				apitask.EndPoint = newConf[k]
+				apitask.ClusterName = m.Setting["cluster"]
 				apitask.LookupdAddresses = strings.Split(m.Setting["lookupd_addresses"], ",")
+				apitask.agent = m
 				m.APITasks[k] = apitask
 				go apitask.Run()
-				m.RegisterService("nginx", k)
 			}
 		}
 	}
@@ -172,26 +167,6 @@ func (m *DDoSAgent) ReadConfigFromConsul(key string) (map[string]string, error) 
 		}
 	}
 	return consulSetting, err
-}
-func (m *DDoSAgent) Status(c *gin.Context) {
-	c.Header("Content-Type", "application/json; charset=\"utf-8\"")
-	c.Header("Access-Control-Allow-Methods", "GET")
-	topic := c.Param("topic")
-	serviceType := c.Param("serviceType")
-	rst := fmt.Sprintf("%s_%s", serviceType, topic)
-	if serviceType == "ipset" {
-		if _, ok := m.IPSets[topic]; ok {
-			c.String(http.StatusOK, rst)
-			return
-		}
-	}
-	if serviceType == "nginx" {
-		if _, ok := m.APITasks[topic]; ok {
-			c.String(http.StatusOK, rst)
-			return
-		}
-	}
-	c.String(http.StatusNotFound, rst)
 }
 
 func (m *DDoSAgent) showIPSet(c *gin.Context) {
@@ -244,32 +219,4 @@ func (m *DDoSAgent) showNginx(c *gin.Context) {
 		resp.Body.Close()
 		c.String(http.StatusOK, string(body))
 	}
-}
-
-func (m *DDoSAgent) RegisterService(serviceType string, service string) error {
-	rand.Seed(time.Now().UnixNano())
-	sid := rand.Intn(65534)
-	serviceID := fmt.Sprintf("%s-%s-%d", serviceType, service, sid)
-
-	consulService := api.AgentServiceRegistration{
-		ID:   serviceID,
-		Name: service,
-		Tags: []string{serviceType, service, time.Now().Format("Jan 02 15:04:05.000 MST")},
-		Port: m.Port,
-		Check: &api.AgentServiceCheck{
-			Script:   fmt.Sprintf("curl --connect-timeout=5 http://%s:%d/status/%s/%s", m.HostName, m.Port, serviceType, service),
-			Interval: "10s",
-			Timeout:  "8s",
-			TTL:      "",
-			HTTP:     fmt.Sprintf("http://%s:%d/status/%s/%s", m.HostName, m.Port, serviceType, service),
-			Status:   "passing",
-		},
-		Checks: api.AgentServiceChecks{},
-	}
-	err := m.agent.ServiceRegister(&consulService)
-	if err != nil {
-		return err
-	}
-
-	return err
 }

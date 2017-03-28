@@ -94,6 +94,20 @@ func (m *DDoSAgent) ReadIPSetConfig() error {
 				m.IPSets[k] = ipset
 				go ipset.Run()
 			}
+			continue
+		}
+		if m.IPSets[k] == nil {
+			ipset := &IPSet{}
+			ipset.Topic = k
+			ipset.HashSetName = newConf[k]
+			ipset.ClusterName = m.Setting["cluster"]
+			ipset.HashName = fmt.Sprintf("%shash", newConf[k])
+			ipset.Timeout = m.Setting["timeout"]
+			ipset.MaxSize, _ = strconv.Atoi(m.Setting["max_size"])
+			ipset.LookupdAddresses = strings.Split(m.Setting["lookupd_addresses"], ",")
+			ipset.agent = m
+			m.IPSets[k] = ipset
+			go ipset.Run()
 		}
 	}
 	for k, _ := range m.IPSets {
@@ -126,6 +140,17 @@ func (m *DDoSAgent) ReadAPIConfig() error {
 				m.APITasks[k] = apitask
 				go apitask.Run()
 			}
+			continue
+		}
+		if m.IPSets[k] == nil {
+			apitask := &APITask{}
+			apitask.Topic = k
+			apitask.EndPoint = newConf[k]
+			apitask.ClusterName = m.Setting["cluster"]
+			apitask.LookupdAddresses = strings.Split(m.Setting["lookupd_addresses"], ",")
+			apitask.agent = m
+			m.APITasks[k] = apitask
+			go apitask.Run()
 		}
 	}
 	for k, _ := range m.APITasks {

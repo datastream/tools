@@ -141,7 +141,7 @@ func (s *IPSet) HandleMessage(m *nsq.Message) error {
 		ipset = "/sbin/ipset"
 	}
 	cmd := exec.Command("/usr/bin/sudo", ipset, "list")
-	if out, err := cmd.Output(); err != nil {
+	if out, err := cmd.Output(); err == nil {
 		kv := &api.KVPair{Key: fmt.Sprintf("%s/status/nginx/%s/%s", s.ClusterName, s.Topic, s.nodeName), Value: out}
 		_, err = s.agent.client.KV().Put(kv, nil)
 		if err != nil {

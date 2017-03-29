@@ -25,9 +25,6 @@ func main() {
 	authorized := r.Group("/api/v1")
 	authorized.GET("/*filepath", API.APIGet)
 	authorized.POST("/*filepath", API.APISet)
-	noauthorized := r.Group("/")
-	noauthorized.GET("/*filepath", API.APIGet)
-	noauthorized.GET("/*filepath", API.APISet)
 	r.Run(setting["port"])
 
 	API.Stop()

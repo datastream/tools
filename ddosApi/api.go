@@ -72,7 +72,7 @@ func (m *DDoSAPI) ReadConfigFromConsul(key string) (map[string]string, error) {
 	if err != nil {
 		return consulSetting, err
 	}
-	size := len(key) + 1
+	size := len(key)
 	for _, value := range pairs {
 		if len(value.Key) > size {
 			consulSetting[value.Key[size:]] = string(value.Value)
@@ -91,7 +91,7 @@ func (m *DDoSAPI) APIGet(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"status": "bad url"})
 		return
 	}
-	data, err := m.ReadConfigFromConsul(fmt.Sprintf("ddosagent/status/%s", url))
+	data, err := m.ReadConfigFromConsul(fmt.Sprintf("ddosagent/status%s", url))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "read consule error"})
 		return

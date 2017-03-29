@@ -142,7 +142,7 @@ func (s *IPSet) HandleMessage(m *nsq.Message) error {
 	}
 	cmd := exec.Command("/usr/bin/sudo", ipset, "list")
 	if out, err := cmd.Output(); err == nil {
-		kv := &api.KVPair{Key: fmt.Sprintf("%s/status/ipset/%s/%s", s.ClusterName, s.Topic, s.nodeName), Value: out}
+		kv := &api.KVPair{Key: fmt.Sprintf("ddosagent/status/ipset/%s/%s", s.Topic, s.nodeName), Value: out}
 		_, err = s.agent.client.KV().Put(kv, nil)
 		if err != nil {
 			return fmt.Errorf("write consul failed")

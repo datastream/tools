@@ -68,7 +68,7 @@ func (t *APITask) HandleMessage(m *nsq.Message) error {
 	if err != nil {
 		return fmt.Errorf("read body")
 	}
-	kv := &api.KVPair{Key: fmt.Sprintf("%s/status/nginx/%s/%s", t.ClusterName, t.Topic, t.nodeName), Value: body}
+	kv := &api.KVPair{Key: fmt.Sprintf("ddosagent/status/nginx/%s/%s",t.Topic, t.nodeName), Value: body}
 	_, err = t.agent.client.KV().Put(kv, nil)
 	if err != nil {
 		return fmt.Errorf("write consul failed")

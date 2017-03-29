@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"github.com/gin-gonic/gin"
 	"github.com/hashicorp/consul/api"
 	"io"
 	"io/ioutil"
@@ -80,43 +81,46 @@ func (m *DDoSAPI) ReadConfigFromConsul(key string) (map[string]string, error) {
 	return consulSetting, err
 }
 
-// APIHandle will route request to different endpoints
-func (m *DDoSAPI) APIHandle(w http.ResponseWriter, r *http.Request) {
-	url := r.URL.Path
+func (m *DDoSAPI) APIGet(c *gin.Context) {
+	c.Header("Content-Type", "application/json; charset=\"utf-8\"")
+	url := c.Request.URL.Path
+	m.RLock()
+	_, ok := m.routeTable[url]
+	m.RUnlock()
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"status": "bad url"})
+		return
+	}
+	data, err := m.ReadConfigFromConsul(fmt.Sprintf("ddosagent/status/%s", url))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "read consule error"})
+		return
+	}
+	c.JSON(http.StatusOK, data)
+}
+
+func (m *DDoSAPI) APISet(c *gin.Context) {
+	c.Header("Content-Type", "application/json; charset=\"utf-8\"")
+	url := c.Request.URL.Path
 	m.RLock()
 	endpoints, ok := m.routeTable[url]
 	m.RUnlock()
 	if !ok {
-		w.WriteHeader(http.StatusNotFound)
+		c.JSON(http.StatusNotFound, gin.H{"status": "bad url"})
 		return
 	}
-	if r.Method == "GET" {
-		data, err := m.ReadConfigFromConsul(fmt.Sprintf("ddosagent/status/%s", url))
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		w.Header().Set("Content-Type", "text/plain; charset=\"utf-8\"")
-		w.WriteHeader(http.StatusOK)
-		for _, v := range data {
-			w.Write([]byte(v))
-		}
-		return
-	}
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := ioutil.ReadAll(c.Request.Body)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, err)
 		return
 	}
 	buf := bytes.NewBuffer(body)
 	rst, err := sendrequest(endpoints, buf)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, err)
 		return
 	}
-	w.Header().Set("Content-Type", "text/plain; charset=\"utf-8\"")
-	w.WriteHeader(http.StatusOK)
-	w.Write(rst)
+	c.JSON(http.StatusOK, rst)
 }
 
 func sendrequest(url string, buf io.Reader) ([]byte, error) {

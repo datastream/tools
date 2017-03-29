@@ -2,12 +2,12 @@ package main
 
 import (
 	"flag"
+	"github.com/gin-gonic/gin"
 	"log"
-	"net/http"
 )
 
 var (
-	bind   = flag.String("port", "0.0.0.0:1234", "http port")
+	config = flag.String("c", "ddosapi.json", "config file")
 )
 
 func main() {
@@ -19,10 +19,32 @@ func main() {
 	API := &DDoSAPI{}
 	API.Setting = setting
 	API.Run()
-	http.HandleFunc("/", API.APIHandle)
-	err = http.ListenAndServe(setting["port"], nil)
-	if err != nil {
-		log.Println(err)
-	}
+	r := gin.Default()
+	//r.Use(s.loginFilter())
+	r.Use(CORSMiddleware())
+	authorized := r.Group("/api/v1")
+	authorized.GET("/*filepath", API.APIGet)
+	authorized.POST("/*filepath", API.APISet)
+	noauthorized := r.Group("/")
+	noauthorized.GET("/*filepath", API.APIGet)
+	noauthorized.GET("/*filepath", API.APISet)
+	r.Run(setting["port"])
+
 	API.Stop()
+}
+func CORSMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Max-Age", "86400")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+		c.Writer.Header().Set("Access-Control-Expose-Headers", "Content-Length")
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(200)
+		} else {
+			c.Next()
+		}
+	}
 }

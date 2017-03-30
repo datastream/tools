@@ -4,11 +4,13 @@ import (
 	"flag"
 	"github.com/gin-gonic/gin"
 	"log"
+	"os"
 )
 
 var (
 	config = flag.String("c", "ddosapi.json", "config file")
 )
+var logger *log.Logger
 
 func main() {
 	flag.Parse()
@@ -16,9 +18,18 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	if len(setting["log_file"]) == 0 {
+		setting["log_file"] = "./"
+	}
+	file, err := os.OpenFile(setting["log_file"], os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatalln("Failed to open log file:", err)
+	}
+	defer file.Close()
+	logger = log.New(file, "DDoSAPI:", log.Ldate|log.Ltime)
 	API := &DDoSAPI{}
 	API.Setting = setting
-	API.Run()
+	go API.Run()
 	r := gin.Default()
 	//r.Use(s.loginFilter())
 	r.Use(CORSMiddleware())

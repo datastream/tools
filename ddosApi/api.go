@@ -83,15 +83,16 @@ func (m *DDoSAPI) ReadConfigFromConsul(key string) (map[string]string, error) {
 
 func (m *DDoSAPI) APIGet(c *gin.Context) {
 	c.Header("Content-Type", "application/json; charset=\"utf-8\"")
-	url := c.Request.URL.Path
+	url := c.Request.URL.Path[7:]
+	url = fmt.Sprintf("%s_read", url)
 	m.RLock()
-	_, ok := m.routeTable[url]
+	endpoints, ok := m.routeTable[url]
 	m.RUnlock()
 	if !ok {
 		c.JSON(http.StatusNotFound, gin.H{"status": "bad url"})
 		return
 	}
-	data, err := m.ReadConfigFromConsul(fmt.Sprintf("ddosagent/status%s", url))
+	data, err := m.ReadConfigFromConsul(endpoints)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "read consule error"})
 		return
@@ -101,7 +102,7 @@ func (m *DDoSAPI) APIGet(c *gin.Context) {
 
 func (m *DDoSAPI) APISet(c *gin.Context) {
 	c.Header("Content-Type", "application/json; charset=\"utf-8\"")
-	url := c.Request.URL.Path
+	url := c.Request.URL.Path[7:]
 	m.RLock()
 	endpoints, ok := m.routeTable[url]
 	m.RUnlock()
@@ -121,6 +122,12 @@ func (m *DDoSAPI) APISet(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, rst)
+	clientIP := c.Request.Header.Get("X-From-IP")
+	if len(clientIP) < 1 {
+		clientIP = c.ClientIP()
+	}
+	logger.Printf(`"{"IP":"%s","API":"%s","Cmd":"%s"}"`, clientIP, c.Request.URL.Path, string(body))
+
 }
 
 func sendrequest(url string, buf io.Reader) ([]byte, error) {

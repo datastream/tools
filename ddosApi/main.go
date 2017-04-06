@@ -19,7 +19,7 @@ func main() {
 		log.Fatal(err)
 	}
 	if len(setting["log_file"]) == 0 {
-		setting["log_file"] = "./"
+		setting["log_file"] = "./ddosapi.log"
 	}
 	file, err := os.OpenFile(setting["log_file"], os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {

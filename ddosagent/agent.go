@@ -142,7 +142,7 @@ func (m *DDoSAgent) ReadAPIConfig() error {
 			}
 			continue
 		}
-		if m.IPSets[k] == nil {
+		if m.APITasks[k] == nil {
 			apitask := &APITask{}
 			apitask.Topic = k
 			apitask.EndPoint = newConf[k]

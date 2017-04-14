@@ -47,6 +47,10 @@ func (t *APITask) HandleMessage(m *nsq.Message) error {
 	if err != nil {
 		return err
 	}
+	if resp.StatusCode == 400 {
+		resp.Body.Close()
+		return nil
+	}
 	if resp.StatusCode != 200 {
 		return fmt.Errorf("api error")
 	}
@@ -68,10 +72,57 @@ func (t *APITask) HandleMessage(m *nsq.Message) error {
 	if err != nil {
 		return fmt.Errorf("read body")
 	}
+	resp.Body.Close()
+	go t.cleanExpired(string(body))
 	kv := &api.KVPair{Key: fmt.Sprintf("ddosagent/status/nginx/%s/%s",t.Topic, t.nodeName), Value: body}
 	_, err = t.agent.client.KV().Put(kv, nil)
 	if err != nil {
 		return fmt.Errorf("write consul failed")
 	}
 	return nil
+}
+
+func (t *APITask) cleanExpired(body string) {
+	lines := strings.Split(body, "\n")
+	var lists []string
+	dataType := "ip"
+	for _, line := range lines {
+		if !strings.Contains(line, "expire=expired") {
+			continue
+		}
+		items := strings.Split(line, " ")
+		if len(items) < 3 {
+			continue
+		}
+		kv :=  strings.Split(items[1], "=")
+		if len(kv) != 2 {
+			continue
+		}
+		dataType = kv[0]
+		if kv[0] == "ip" {
+			ip := strings.Split(kv[1], "(")
+			lists = append(lists, ip[0])
+		} else {
+			l := len(kv[1])
+			if l > 3 {
+				lists = append(lists, kv[1][1:l-2])
+			}
+		}
+	}
+	t.doRequest(fmt.Sprintf("free_type=%s&free_list=%s",dataType, strings.Join(lists, ",")))
+}
+func (t *APITask) doRequest(body string) {
+	buf := bytes.NewBuffer([]byte(body))
+	resp, err := t.client.Post(t.EndPoint, "application/x-www-form-urlencoded", buf)
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == 400 {
+		return
+	}
+	if resp.StatusCode != 200 {
+		return
+	}
+	io.Copy(ioutil.Discard, resp.Body)
 }

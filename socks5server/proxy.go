@@ -6,9 +6,12 @@ import (
 	"math/rand"
 	"net"
 	"strconv"
+	"sync"
+	"time"
 )
 
 var seed int64
+var ipList []net.IP
 
 func rfc1918private(ip net.IP) bool {
 	for _, cidr := range []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"} {
@@ -53,6 +56,7 @@ func getAllIPv4PublicIP() ([]net.IP, error) {
 }
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	ipList, _ = getAllIPv4PublicIP()
 	seed = 42
 	l, err := net.Listen("tcp", ":8081")
 	if err != nil {
@@ -64,7 +68,6 @@ func main() {
 		if err != nil {
 			log.Panic(err)
 		}
-
 		go handleClientRequest(client)
 	}
 }
@@ -73,7 +76,6 @@ func handleClientRequest(client net.Conn) {
 	if client == nil {
 		return
 	}
-	defer client.Close()
 
 	var b [1024]byte
 	n, err := client.Read(b[:])
@@ -81,7 +83,7 @@ func handleClientRequest(client net.Conn) {
 		log.Println(err)
 		return
 	}
-
+	var wg sync.WaitGroup
 	if b[0] == 0x05 {
 		client.Write([]byte{0x05, 0x00})
 		n, err = client.Read(b[:])
@@ -95,30 +97,42 @@ func handleClientRequest(client net.Conn) {
 			host = net.IP{b[4], b[5], b[6], b[7], b[8], b[9], b[10], b[11], b[12], b[13], b[14], b[15], b[16], b[17], b[18], b[19]}.String()
 		}
 		port = strconv.Itoa(int(b[n-2])<<8 | int(b[n-1]))
-
-		ips, _ := getAllIPv4PublicIP()
-		rand.Seed(seed)
-		localeAddr := &net.TCPAddr{
-			IP:   ips[rand.Intn(len(ips))],
-			Port: rand.Intn(64510) + 1024,
-		}
-		seed = int64(rand.Intn(64510))
-		log.Println(localeAddr)
-		remouteAddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(host, port))
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		log.Println(remouteAddr)
-		server, err := net.DialTCP("tcp", localeAddr, remouteAddr)
-		if err != nil {
-			log.Println(err)
-			return
+		var server net.Conn
+		for {
+			rand.Seed(time.Now().Unix())
+			localeAddr := &net.TCPAddr{
+				IP:   ipList[rand.Intn(len(ipList))],
+				Port: rand.Intn(64510) + 1024,
+			}
+			seed = int64(rand.Intn(64510))
+			log.Println(localeAddr)
+			remouteAddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(host, port))
+			if err != nil {
+				log.Println(err)
+				return
+			}
+			log.Println(remouteAddr)
+			server, err = net.DialTCP("tcp", localeAddr, remouteAddr)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+			break
 		}
 		client.Write([]byte{0x05, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
-		go io.Copy(client, server)
-		io.Copy(server, client)
-		server.Close()
+		wg.Add(1)
+		go func() {
+			io.Copy(client, server)
+			client.Close()
+			wg.Done()
+		}()
+		wg.Add(1)
+		go func() {
+			io.Copy(server, client)
+			server.Close()
+			wg.Done()
+		}()
+		wg.Wait()
 	}
 	log.Println("close connect")
 }

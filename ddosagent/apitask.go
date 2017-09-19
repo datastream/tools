@@ -88,7 +88,7 @@ func (t *APITask) GC(args []byte) {
 	}
 	resp.Body.Close()
 	t.cleanExpired(string(body))
-	err = t.agent.redisClient.Sadd(fmt.Sprintf("ddosagent/status/nginx/%s", t.Topic), t.nodeName).Err()
+	err = t.agent.redisClient.SAdd(fmt.Sprintf("ddosagent/status/nginx/%s", t.Topic), t.nodeName).Err()
 	err = t.agent.redisClient.Set(fmt.Sprintf("ddosagent/status/nginx/%s/%s", t.Topic, t.nodeName), body, 0).Err()
 	if err != nil {
 		fmt.Println("write redis error")

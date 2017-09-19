@@ -24,6 +24,7 @@ type IPSet struct {
 	LookupdAddresses []string
 	consumer         *nsq.Consumer
 	nodeName         string
+	UpdatedAt        int32
 	agent            *DDoSAgent
 }
 
@@ -139,13 +140,22 @@ func (s *IPSet) HandleMessage(m *nsq.Message) error {
 	if _, err := os.Stat(ipset); os.IsNotExist(err) {
 		ipset = "/sbin/ipset"
 	}
-	cmd := exec.Command("/usr/bin/sudo", ipset, "list")
-	if out, err := cmd.Output(); err == nil {
-		err = s.agent.redisClient.Sadd(fmt.Sprintf("ddosagent/status/ipset/%s", s.Topic), s.nodeName).Err()
-		err = s.agent.redisClient.Set(fmt.Sprintf("ddosagent/status/ipset/%s/%s", s.Topic, s.nodeName), out, 0).Err()
-		if err != nil {
-			return fmt.Errorf("write consul failed")
+	cur := atomic.LoadInt32(&s.UpdatedAt)
+
+	if cur > 10 {
+
+		cmd := exec.Command("/usr/bin/sudo", ipset, "list")
+		if out, err := cmd.Output(); err == nil {
+			err = s.agent.redisClient.SAdd(fmt.Sprintf("ddosagent/status/ipset/%s", s.Topic), s.nodeName).Err()
+			err = s.agent.redisClient.Set(fmt.Sprintf("ddosagent/status/ipset/%s/%s", s.Topic, s.nodeName), out, 0).Err()
+			if err != nil {
+				return fmt.Errorf("write consul failed")
+			}
 		}
+		atomic.StoreInt32(&s.UpdatedAt, 0)
+
+	} else {
+		atomic.AddInt32(&s.UpdatedAt, 1)
 	}
 	return nil
 }

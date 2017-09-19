@@ -102,12 +102,18 @@ func (m *DDoSAPI) APIGet(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"status": "bad url"})
 		return
 	}
-	data, err := m.redisClient.Get(endpoints).Result()
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "read consule error"})
-		return
+	data, _ := m.redisClient.SMembers(endpoints).Result()
+	body := make(map[string]string)
+	for _, v := range data {
+		key := fmt.Sprintf("%s/%s", endpoints, v)
+		rst, err := m.redisClient.Get(key).Result()
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"status": "read redis error"})
+			return
+		}
+		body[key] = rst
 	}
-	c.JSON(http.StatusOK, data)
+	c.JSON(http.StatusOK, body)
 }
 
 func (m *DDoSAPI) APISet(c *gin.Context) {

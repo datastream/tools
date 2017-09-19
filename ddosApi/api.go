@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -102,6 +103,7 @@ func (m *DDoSAPI) APIGet(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"status": "bad url"})
 		return
 	}
+	endpoints = strings.Trim(endpoints, "/")
 	data, _ := m.redisClient.SMembers(endpoints).Result()
 	body := make(map[string]string)
 	for _, v := range data {

@@ -141,6 +141,7 @@ func (s *IPSet) HandleMessage(m *nsq.Message) error {
 	}
 	cmd := exec.Command("/usr/bin/sudo", ipset, "list")
 	if out, err := cmd.Output(); err == nil {
+		err = s.agent.redisClient.Sadd(fmt.Sprintf("ddosagent/status/ipset/%s", s.Topic), s.nodeName).Err()
 		err = s.agent.redisClient.Set(fmt.Sprintf("ddosagent/status/ipset/%s/%s", s.Topic, s.nodeName), out, 0).Err()
 		if err != nil {
 			return fmt.Errorf("write consul failed")

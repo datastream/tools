@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -21,6 +22,7 @@ type APITask struct {
 	consumer         *nsq.Consumer
 	client           *http.Client
 	nodeName         string
+	UpdatedAt        int32
 	agent            *DDoSAgent
 }
 
@@ -56,30 +58,42 @@ func (t *APITask) HandleMessage(m *nsq.Message) error {
 	}
 	io.Copy(ioutil.Discard, resp.Body)
 	resp.Body.Close()
-	if strings.Contains(string(m.Body), "variable") {
-		buf = bytes.NewBuffer([]byte("show_type=variable&show_list=all"))
+	cur := atomic.LoadInt32(&t.UpdatedAt)
+	if cur > 10 {
+		if strings.Contains(string(m.Body), "variable") {
+			go t.GC([]byte("show_type=variable&show_list=all"))
+		} else {
+			go t.GC([]byte("show_type=ip&show_list=all"))
+		}
+		atomic.StoreInt32(&t.UpdatedAt, 0)
 	} else {
-		buf = bytes.NewBuffer([]byte("show_type=ip&show_list=all"))
+		atomic.AddInt32(&t.UpdatedAt, 1)
 	}
-	resp, err = t.client.Post(t.EndPoint, "application/x-www-form-urlencoded", buf)
+	return nil
+}
+func (t *APITask) GC(args []byte) {
+	buf := bytes.NewBuffer(args)
+	resp, err := t.client.Post(t.EndPoint, "application/x-www-form-urlencoded", buf)
 	if err != nil {
-		return err
+		return
+	}
+	if resp.StatusCode == 400 {
+		return
 	}
 	if resp.StatusCode != 200 {
-		return fmt.Errorf("api error")
+		return
 	}
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("read body")
+		return
 	}
 	resp.Body.Close()
-	go t.cleanExpired(string(body))
-	kv := &api.KVPair{Key: fmt.Sprintf("ddosagent/status/nginx/%s/%s",t.Topic, t.nodeName), Value: body}
+	t.cleanExpired(string(body))
+	kv := &api.KVPair{Key: fmt.Sprintf("ddosagent/status/nginx/%s/%s", t.Topic, t.nodeName), Value: body}
 	_, err = t.agent.client.KV().Put(kv, nil)
 	if err != nil {
-		return fmt.Errorf("write consul failed")
+		return
 	}
-	return nil
 }
 
 func (t *APITask) cleanExpired(body string) {
@@ -94,7 +108,7 @@ func (t *APITask) cleanExpired(body string) {
 		if len(items) < 3 {
 			continue
 		}
-		kv :=  strings.Split(items[1], "=")
+		kv := strings.Split(items[1], "=")
 		if len(kv) != 2 {
 			continue
 		}
@@ -109,7 +123,7 @@ func (t *APITask) cleanExpired(body string) {
 			}
 		}
 	}
-	t.doRequest(fmt.Sprintf("free_type=%s&free_list=%s",dataType, strings.Join(lists, ",")))
+	t.doRequest(fmt.Sprintf("free_type=%s&free_list=%s", dataType, strings.Join(lists, ",")))
 }
 func (t *APITask) doRequest(body string) {
 	buf := bytes.NewBuffer([]byte(body))

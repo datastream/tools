@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"github.com/hashicorp/consul/api"
 	"github.com/nsqio/go-nsq"
 	"io"
 	"io/ioutil"
@@ -89,12 +88,10 @@ func (t *APITask) GC(args []byte) {
 	}
 	resp.Body.Close()
 	t.cleanExpired(string(body))
-	/*kv := &api.KVPair{Key: fmt.Sprintf("ddosagent/status/nginx/%s/%s", t.Topic, t.nodeName), Value: body}
-	_, err = t.agent.client.KV().Put(kv, nil)
+	err = t.agent.redisClient.Set(fmt.Sprintf("ddosagent/status/nginx/%s/%s", t.Topic, t.nodeName), body, 0).Err()
 	if err != nil {
-		return
+		fmt.Println("write redis error")
 	}
-	*/
 }
 
 func (t *APITask) cleanExpired(body string) {

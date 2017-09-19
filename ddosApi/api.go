@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/go-redis/redis"
 	"github.com/hashicorp/consul/api"
 	"io"
 	"io/ioutil"
@@ -14,10 +15,11 @@ import (
 )
 
 type DDoSAPI struct {
-	client     *api.Client
-	Setting    map[string]string
-	routeTable map[string]string
-	exitChan   chan int
+	client      *api.Client
+	Setting     map[string]string
+	routeTable  map[string]string
+	exitChan    chan int
+	redisClient *redis.Client
 	sync.RWMutex
 }
 
@@ -31,7 +33,15 @@ func (m *DDoSAPI) Run() {
 	config.Address = m.Setting["consul_address"]
 	config.Datacenter = m.Setting["datacenter"]
 	config.Token = m.Setting["consul_token"]
-	var err error
+	m.redisClient = redis.NewClient(&redis.Options{
+		Addr:     m.Setting["redis_server"],
+		Password: m.Setting["redis_passoword"],
+		DB:       0,
+	})
+	_, err := m.redisClient.Ping().Result()
+	if err != nil {
+		fmt.Println("redis server failed", err)
+	}
 	m.client, err = api.NewClient(config)
 	if err != nil {
 		fmt.Println("reload consul setting failed", err)
@@ -92,7 +102,7 @@ func (m *DDoSAPI) APIGet(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"status": "bad url"})
 		return
 	}
-	data, err := m.ReadConfigFromConsul(endpoints)
+	data, err := m.redisClient.Get(endpoints).Result()
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "read consule error"})
 		return

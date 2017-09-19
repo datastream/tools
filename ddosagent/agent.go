@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/go-redis/redis"
 	"github.com/hashicorp/consul/api"
 	"log"
 	"os"
@@ -14,6 +15,7 @@ type DDoSAgent struct {
 	IPSets           map[string]*IPSet
 	APITasks         map[string]*APITask
 	client           *api.Client
+	redisClient      *redis.Client
 	HostName         string
 	Setting          map[string]string
 	LookupdAddresses []string
@@ -38,6 +40,15 @@ func (m *DDoSAgent) Run() {
 	m.HostName, err = os.Hostname()
 	if err != nil {
 		log.Fatal("get hostname failed", err)
+	}
+	m.redisClient = redis.NewClient(&redis.Options{
+		Addr:     m.Setting["redis_server"],
+		Password: m.Setting["redis_passoword"],
+		DB:       0,
+	})
+	_, err = m.redisClient.Ping().Result()
+	if err != nil {
+		fmt.Println("redis server failed", err)
 	}
 	config := api.DefaultConfig()
 	config.Address = m.Setting["consul_address"]

@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/hashicorp/consul/api"
 	"github.com/nsqio/go-nsq"
 	"log"
 	"net/url"
@@ -142,8 +141,7 @@ func (s *IPSet) HandleMessage(m *nsq.Message) error {
 	}
 	cmd := exec.Command("/usr/bin/sudo", ipset, "list")
 	if out, err := cmd.Output(); err == nil {
-		kv := &api.KVPair{Key: fmt.Sprintf("ddosagent/status/ipset/%s/%s", s.Topic, s.nodeName), Value: out}
-		_, err = s.agent.client.KV().Put(kv, nil)
+		err = s.agent.redisClient.Set(fmt.Sprintf("ddosagent/status/ipset/%s/%s", s.Topic, s.nodeName), out, 0).Err()
 		if err != nil {
 			return fmt.Errorf("write consul failed")
 		}

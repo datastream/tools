@@ -89,11 +89,12 @@ func (t *APITask) GC(args []byte) {
 	}
 	resp.Body.Close()
 	t.cleanExpired(string(body))
-	kv := &api.KVPair{Key: fmt.Sprintf("ddosagent/status/nginx/%s/%s", t.Topic, t.nodeName), Value: body}
+	/*kv := &api.KVPair{Key: fmt.Sprintf("ddosagent/status/nginx/%s/%s", t.Topic, t.nodeName), Value: body}
 	_, err = t.agent.client.KV().Put(kv, nil)
 	if err != nil {
 		return
 	}
+	*/
 }
 
 func (t *APITask) cleanExpired(body string) {

@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -26,6 +27,10 @@ func main() {
 func DownloadDtD(c *gin.Context) {
 	c.Header("Content-Type", "text/xml; charset=\"utf-8\"")
 	url := c.Request.URL.RequestURI()[1:]
+	if matched, _ := regexp.MatchString("^[[:digit:]].*", url); matched {
+		c.String(http.StatusInternalServerError, "fail to read body")
+		return
+	}
 	timeout := time.Duration(5 * time.Second)
 	client := http.Client{
 		Timeout: timeout,

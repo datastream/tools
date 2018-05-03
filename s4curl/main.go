@@ -67,7 +67,7 @@ func main() {
 	}
 	url := args[len(args)-1]
 	req, _ := http.NewRequest(*reqMethod, url, bodyReader)
-	req.Header.Add("date", time.Now().Format("Mon, 09 Sep 2011 23:36:00 GMT"))
+	req.Header.Add("date", time.Now().Format(time.RFC1123))
 	for _, header := range headers {
 		index := strings.IndexAny(header, ":")
 		if index < 1 {
@@ -76,7 +76,7 @@ func main() {
 		req.Header.Set(header[:index], header[index+1:])
 	}
 	if s != nil {
-		s.SignRequest(req)
+		s.SignRequest(req, nil)
 	}
 	if len(*debug) > 0 {
 		fmt.Printf("%s %s %s\n", req.Method, req.URL.RequestURI(), req.Proto)
